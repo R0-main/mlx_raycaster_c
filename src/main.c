@@ -6,7 +6,7 @@
 /*   By: rguigneb <rguigneb@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/28 10:15:20 by rguigneb          #+#    #+#             */
-/*   Updated: 2025/04/08 16:41:48 by rguigneb         ###   ########.fr       */
+/*   Updated: 2025/04/10 11:59:42 by rguigneb         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -19,205 +19,213 @@
 
 #define MAP_HEIGHT 5
 #define MAP_WIDTH 5
+#define SIZE 64
+#define FOV 100
+
+#define SCREEN_HEIGHT MAP_HEIGHT *SIZE
+#define SCREEN_WIDTH MAP_WIDTH *SIZE
+
 #define PLAYER_SPEED 1
-#define SIZE 16
+
+typedef struct s_uvec_2
+{
+	unsigned int	x;
+	unsigned int	y;
+}					t_uvec2;
+
+typedef struct s_fvec_2
+{
+	float			x;
+	float			y;
+}					t_fvec2;
 
 typedef struct s_player
 {
-	float		px;
-	float		py;
-	float		rx;
-	float		ry;
-	float		ra;
-}				t_player;
+	t_fvec2			position;
+	float			rotation_angle;
+}					t_player;
 
 typedef struct s_data
 {
-	void		*mlx;
-	void		*win;
-	t_player	player;
-	char		map[MAP_HEIGHT][MAP_WIDTH];
-}				t_data;
-
-void	init_map(t_data *data)
-{
-	char temp[MAP_HEIGHT][MAP_WIDTH] = {
-		{1, 1, 1, 1, 1},
-		{1, 0, 0, 0, 1},
-		{1, 0, 0, 0, 1},
-		{1, 0, 0, 1, 1},
-		{1, 1, 1, 1, 1},
-	};
-	for (int i = 0; i < MAP_HEIGHT; i++)
-	{
-		for (int j = 0; j < MAP_WIDTH; j++)
-		{
-			data->map[i][j] = temp[i][j];
-		}
-	}
-}
+	void			*mlx;
+	void			*win;
+	t_img			*rendering_buffer;
+	t_player		player;
+	char			*map;
+}					t_data;
 
 void	on_key_pressed(int key, t_data *data)
 {
-	if (key == 'a')
+	float	adj;
+	float	opo;
+
+	printf("key :%d\n", key);
+	if (key == 'w')
 	{
-		data->player.ra -= 0.1;
-		if (data->player.ra < 0)
-			data->player.ra += 2 * PI; // += ?
-		data->player.rx = cos(data->player.ra) * 5;
-		data->player.ry = sin(data->player.ra) * 5;
-	}
-	if (key == 'd')
-	{
-		data->player.ra += 0.1;
-		if (data->player.ra > 2 * PI)
-			data->player.ra -= 2 * PI; // += ?
-		data->player.rx = cos(data->player.ra) * 5;
-		data->player.ry = sin(data->player.ra) * 5;
+		adj = cos(data->player.rotation_angle) * 3.5;
+		opo = sin(data->player.rotation_angle) * 3.5;
+		printf("adj : %d", adj);
+		printf("opo : %d", opo);
+		data->player.position.x += adj;
+		data->player.position.y += opo;
 	}
 	if (key == 's')
 	{
-		data->player.px -= data->player.rx;
-		data->player.py -= data->player.ry;
+		adj = cos(data->player.rotation_angle) * 3.5;
+		opo = sin(data->player.rotation_angle) * 3.5;
+		printf("adj : %d", adj);
+		printf("opo : %d", opo);
+		data->player.position.x -= adj;
+		data->player.position.y -= opo;
 	}
-	if (key == 'w')
+	if (key == 'a')
 	{
-		data->player.px += data->player.rx;
-		data->player.py += data->player.ry;
+		data->player.rotation_angle -= 0.25;
 	}
-	printf("key :%d\n", key);
+	if (key == 'd')
+	{
+		data->player.rotation_angle += 0.25;
+	}
 }
 
-void send_3d_rays(t_data *data)
+// t_img *create_re
+int	ft_max(int a, int b)
 {
+	if (a > b)
+		return (a);
+	return (b);
+}
 
-	int r, mx, my, mp, dof; float rx, ry, ra, xo, yo;
+void	put_pixel_to_buffer(t_img *buffer, t_uvec2 pos, int color)
+{
+	((unsigned int *)buffer->data)[(pos.y * (buffer->size_line / 4))
+		+ pos.x] = color;
+}
 
-	ra = data->player.ra;
+void	draw_line(t_img *buffer, int color, t_uvec2 start, t_uvec2 end)
+{
+	int		distance_x;
+	int		distance_y;
+	float	step;
+	float	stepX;
+	float	stepY;
+	int		i;
+	t_uvec2	tmp;
+	int		y;
+	int		x;
 
-	for (r = 0; r < 1; r++)
+	i = 0;
+	if (end.y - start.y >= end.x - start.x)
 	{
-		dof = 0;
-		float aTan = -1 / tan(ra);
-		if (ra > PI)
-		{ // looking up
-			ry = (((int)data->player.py>>6)<<6)-0.0001;
-			rx = (data->player.py - ry) * aTan + data->player.px;
-			yo = -64;
-			xo =-yo * aTan;
-		}
-		if (ra < PI) {
-			ry = (((int)data->player.py>>6)<<6)+ 64;
-			rx = (data->player.py - ry) * aTan + data->player.px;
-			yo = 64;
-			xo =-yo * aTan;
-		}
-		if (ra == 0 || ra == PI)
-		{
-			rx = data->player.px;
-			ry = data->player.py;
-			dof = 8;
-		}
-		while (dof < 8)
-		{
-			mx = (int)(rx)>>6; my = (int)(ry)>>6; // divided by 64
-			if (mx <= MAP_WIDTH && my <= MAP_HEIGHT && data->map[my][mx] == 1)
-				break ; // dof = 8;
-			else
-			{
-				rx += xo;
-				ry += yo;
-				dof += 1;
-			}
-		}
-
-		float nTan = -1 / tan(ra);
-		if (ra > PI)
-		{ // looking up
-			ry = (((int)data->player.py>>6)<<6)-0.0001;
-			rx = (data->player.py - ry) * nTan + data->player.px;
-			yo = -64;
-			xo =-yo * nTan;
-		}
-		if (ra < PI) {
-			ry = (((int)data->player.py>>6)<<6)+ 64;
-			rx = (data->player.py - ry) * nTan + data->player.px;
-			yo = 64;
-			xo =-yo * nTan;
-		}
-		if (ra == 0 || ra == PI)
-		{
-			rx = data->player.px;
-			ry = data->player.py;
-			dof = 8;
-		}
-		while (dof < 8)
-		{
-			mx = (int)(rx)>>6; my = (int)(ry)>>6; // divided by 64
-			if (mx <= MAP_WIDTH && my <= MAP_HEIGHT && data->map[my][mx] == 1)
-				break ; // dof = 8;
-			else
-			{
-				rx += xo;
-				ry += yo;
-				dof += 1;
-			}
-		}
-
-		for (int l = 0; l < SIZE / 4; l++)
-		{
-			for (int k = 0; k < SIZE / 4; k++)
-			{
-				mlx_pixel_put(data->mlx, data->win, (((int)data->player.px
-							+ rx)) + l, (((int)data->player.py
-							+ ry)) + k, 0xDD0000);
-			}
-		}
+		tmp = start;
+		start = end;
+		end = tmp;
 	}
+	distance_x = end.x - start.x;
+	distance_y = end.y - start.y;
+	step = ft_max(abs(distance_x), abs(distance_y));
+	if (step != 0)
+	{
+		stepX = distance_x / step;
+		stepY = distance_y / step;
+	}
+	while (i < step + 1)
+	{
+		y = roundf(start.y + i * stepY);
+		x = roundf((float)(start.x + i * stepX));
+		put_pixel_to_buffer(buffer, (t_uvec2){x, y}, color);
+		i++;
+	}
+}
 
+void	draw_rect(t_img *buffer, int color, t_uvec2 start, t_uvec2 end)
+{
+	t_uvec2	tmp;
+
+	tmp = start;
+	while (tmp.x < end.x)
+	{
+		tmp.y = start.y;
+		while (tmp.y < end.y)
+		{
+			put_pixel_to_buffer(buffer, tmp, color);
+			tmp.y++;
+		}
+		tmp.x++;
+	}
+}
+
+void	draw_map(t_img *buffer, char *map)
+{
+	t_uvec2	tmp;
+
+	tmp = (t_uvec2){0, 0};
+	while (tmp.x < MAP_WIDTH)
+	{
+		tmp.y = 0;
+		while (tmp.y < MAP_HEIGHT)
+		{
+			if (map[tmp.y * MAP_HEIGHT + tmp.x] == 1)
+				draw_rect(buffer, 0x00FFFF, (t_uvec2){tmp.x * SIZE, tmp.y
+					* SIZE}, (t_uvec2){tmp.x * SIZE + SIZE - 2, tmp.y * SIZE
+					+ SIZE - 2});
+			else
+				draw_rect(buffer, 0xFFFFFF, (t_uvec2){tmp.x * SIZE, tmp.y
+					* SIZE}, (t_uvec2){tmp.x * SIZE + SIZE - 2, tmp.y * SIZE
+					+ SIZE - 2});
+			tmp.y++;
+		}
+		tmp.x++;
+	}
+}
+
+float nomilize_angle(float angle)
+{
+	if (angle < 0)
+		angle = (2 * PI) + angle;
+	else
+		angle = angle - (2 * PI);
+	return (angle);
+}
+
+void	draw_ray(t_img *buffer, t_player player, float angle, int len)
+{
+	draw_line(buffer, 0xFF0000, (t_uvec2){player.position.x, player.position.y},
+		(t_uvec2){player.position.x + cos(angle) * len,
+		player.position.y + sin(angle) * len});
+}
+
+void	draw_player(t_img *buffer, t_player player)
+{
+	draw_rect(buffer, 0xFF0000, (t_uvec2){((int)player.position.x) - 5,
+		((int)player.position.y) - 5}, (t_uvec2){((int)player.position.x) + 5,
+		((int)player.position.y) + 5});
+	draw_ray(buffer, player, player.rotation_angle, 30);
+
+	int i = nomilize_angle(player.rotation_angle) - 5;
+
+	while (i < nomilize_angle(player.rotation_angle) + 5)
+		draw_ray(buffer, player, nomilize_angle(i++), 15);
+	// draw_rect(buffer, 0x0DF0FF, player.position, (t_uvec2){player.position.x
+	// +10, player.position.y + 10
+	// });
 }
 
 void	loop(t_data *data)
 {
-	// printf("pos : %f, %f\n", data->player.px, data->player.py);
-	mlx_clear_window(data->mlx, data->win);
 	usleep(10000);
-	for (int i = 0; i < MAP_HEIGHT; i++)
-	{
-		for (int j = 0; j < MAP_WIDTH; j++)
-		{
-			for (int l = 0; l < SIZE - 2; l++)
-			{
-				for (int k = 0; k < SIZE - 2; k++)
-				{
-					if (data->map[i][j] == 1)
-						mlx_pixel_put(data->mlx, data->win, (i * SIZE) + l, (j
-								* SIZE) + k, 0xFFDD00);
-					else
-						mlx_pixel_put(data->mlx, data->win, (i * SIZE) + l, (j
-								* SIZE) + k, 0x00DDDD);
-				}
-			}
-		}
-	}
-	for (int l = 0; l < SIZE / 2; l++)
-	{
-		for (int k = 0; k < SIZE / 2; k++)
-		{
-			mlx_pixel_put(data->mlx, data->win, ((int)data->player.px * SIZE
-					/ 2) + l, ((int)data->player.py * SIZE / 2) + k, 0xFF0000);
-		}
-	}
-	send_3d_rays(data);
-	// for (int l = 0; l < SIZE / 2; l++)
-	// {
-	// 	for (int k = 0; k < SIZE / 2; k++)
-	// 	{
-	// 		mlx_pixel_put(data->mlx, data->win, (((int)data->player.px
-	// 					+ data->player.rx) * 10) + l, (((int)data->player.py
-	// 					+ data->player.ry) * 10) + k, 0xFF0000);
-	// 	}
-	// }
+	mlx_destroy_image(data->mlx, data->rendering_buffer);
+	data->rendering_buffer = mlx_new_image(data->mlx, SCREEN_WIDTH,
+			SCREEN_HEIGHT);
+	draw_line(data->rendering_buffer, 0xFF0000, (t_uvec2){50, 200}, (t_uvec2){0,
+		0});
+	draw_line(data->rendering_buffer, 0xDD00DD, (t_uvec2){0, 0}, (t_uvec2){50,
+		90});
+	draw_rect(data->rendering_buffer, 0x00DF0F, (t_uvec2){90, 90},
+		(t_uvec2){120, 99});
+	draw_map(data->rendering_buffer, data->map);
+	draw_player(data->rendering_buffer, data->player);
+	mlx_put_image_to_window(data->mlx, data->win, data->rendering_buffer, 0, 0);
 }
 
 int	destroy_close(t_data *data)
@@ -230,24 +238,41 @@ int	main(int argc, char const *argv[])
 {
 	t_data	data;
 
-	init_map(&data);
-	data.player.px = 4;
-	data.player.py = 4;
-	data.player.ra = 0.1;
-	data.player.rx = cos(data.player.ra) * 5;
-	data.player.ry = sin(data.player.ra) * 5;
+	char map[MAP_HEIGHT * MAP_WIDTH] = {
+		1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1,
+			1,
+	};
+	bzero(&data, sizeof(t_data));
+	data.player.position.x = SCREEN_WIDTH / 2;
+	data.player.position.y = SCREEN_HEIGHT / 2;
+	data.player.rotation_angle = 45 * (PI / 180);
+	data.map = (char *)&map;
 	data.mlx = mlx_init();
 	if (!data.mlx)
 		return (EXIT_FAILURE);
-	data.win = mlx_new_window(data.mlx, 500, 500, "RayCaster in C");
+	data.win = mlx_new_window(data.mlx, SCREEN_WIDTH, SCREEN_HEIGHT,
+			"RayCaster in C");
 	if (!data.win)
 		return (mlx_destroy_display(data.mlx), free(data.mlx), EXIT_FAILURE);
+	data.rendering_buffer = mlx_new_image(data.mlx, SCREEN_WIDTH,
+			SCREEN_HEIGHT);
 	mlx_hook(data.win, DestroyNotify, 0, destroy_close, &data.mlx);
-	mlx_key_hook(data.win, (int (*)(void *))on_key_pressed, &data);
+	mlx_hook(data.win, KeyPress, KeyPressMask, (int (*)())on_key_pressed,
+		&data);
+	// mlx_key_hook(data.win, (int (*)(void *))on_key_pressed, &data);
 	mlx_loop_hook(data.mlx, (int (*)(void *))loop, &data);
 	mlx_loop(data.mlx);
+	mlx_destroy_image(data.mlx, data.rendering_buffer);
 	mlx_destroy_window(data.mlx, data.win);
 	mlx_destroy_display(data.mlx);
 	free(data.mlx);
 	return (0);
 }
+
+// char map[MAP_HEIGHT * MAP_WIDTH] = {
+// 	1, 1, 1, 1, 1,
+// 	1, 0, 0, 0, 1,
+// 	1, 0, 0, 0, 1,
+// 	1, 0, 0, 0, 1,
+// 	1, 1, 1, 1, 1,
+// };
