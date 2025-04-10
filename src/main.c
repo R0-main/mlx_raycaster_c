@@ -6,7 +6,7 @@
 /*   By: rguigneb <rguigneb@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/28 10:15:20 by rguigneb          #+#    #+#             */
-/*   Updated: 2025/04/10 11:59:42 by rguigneb         ###   ########.fr       */
+/*   Updated: 2025/04/10 12:23:40 by rguigneb         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -20,7 +20,9 @@
 #define MAP_HEIGHT 5
 #define MAP_WIDTH 5
 #define SIZE 64
-#define FOV 100
+#define FOV 60
+#define X_SIZE = 4
+#define RAYS_COUNT 
 
 #define SCREEN_HEIGHT MAP_HEIGHT *SIZE
 #define SCREEN_WIDTH MAP_WIDTH *SIZE
@@ -54,6 +56,15 @@ typedef struct s_data
 	char			*map;
 }					t_data;
 
+
+float	normalize_angle(float angle)
+{
+	angle = fmodf(angle, (2.0f * PI));
+	if (angle < 0)
+		angle += (2.0f * PI);
+	return (angle);
+}
+
 void	on_key_pressed(int key, t_data *data)
 {
 	float	adj;
@@ -86,6 +97,7 @@ void	on_key_pressed(int key, t_data *data)
 	{
 		data->player.rotation_angle += 0.25;
 	}
+	data->player.rotation_angle = normalize_angle(data->player.rotation_angle);
 }
 
 // t_img *create_re
@@ -179,33 +191,35 @@ void	draw_map(t_img *buffer, char *map)
 	}
 }
 
-float nomilize_angle(float angle)
-{
-	if (angle < 0)
-		angle = (2 * PI) + angle;
-	else
-		angle = angle - (2 * PI);
-	return (angle);
-}
-
 void	draw_ray(t_img *buffer, t_player player, float angle, int len)
 {
 	draw_line(buffer, 0xFF0000, (t_uvec2){player.position.x, player.position.y},
-		(t_uvec2){player.position.x + cos(angle) * len,
-		player.position.y + sin(angle) * len});
+		(t_uvec2){player.position.x + cos(angle) * len, player.position.y
+		+ sin(angle) * len});
+}
+
+void	raycaster(t_img *buffer, t_player player, float angle, int len)
+{
+	draw_line(buffer, 0xFF0000, (t_uvec2){player.position.x, player.position.y},
+		(t_uvec2){player.position.x + cos(angle) * len, player.position.y
+		+ sin(angle) * len});
 }
 
 void	draw_player(t_img *buffer, t_player player)
 {
+	float	i;
+
 	draw_rect(buffer, 0xFF0000, (t_uvec2){((int)player.position.x) - 5,
 		((int)player.position.y) - 5}, (t_uvec2){((int)player.position.x) + 5,
 		((int)player.position.y) + 5});
-	draw_ray(buffer, player, player.rotation_angle, 30);
-
-	int i = nomilize_angle(player.rotation_angle) - 5;
-
-	while (i < nomilize_angle(player.rotation_angle) + 5)
-		draw_ray(buffer, player, nomilize_angle(i++), 15);
+	draw_ray(buffer, player, player.rotation_angle, 50);
+	i = player.rotation_angle - FOV / 2 ;
+	while (i <= player.rotation_angle + FOV / 2)
+	{
+		draw_ray(buffer, player, i, 25);
+		i += 0.2;
+		// i++;
+	}
 	// draw_rect(buffer, 0x0DF0FF, player.position, (t_uvec2){player.position.x
 	// +10, player.position.y + 10
 	// });
