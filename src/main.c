@@ -6,7 +6,7 @@
 /*   By: rguigneb <rguigneb@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/28 10:15:20 by rguigneb          #+#    #+#             */
-/*   Updated: 2025/04/10 12:23:40 by rguigneb         ###   ########.fr       */
+/*   Updated: 2025/04/10 15:23:23 by rguigneb         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -20,12 +20,13 @@
 #define MAP_HEIGHT 5
 #define MAP_WIDTH 5
 #define SIZE 64
-#define FOV 60
-#define X_SIZE = 4
-#define RAYS_COUNT 
+#define FOV 100 * (PI / 180)
 
 #define SCREEN_HEIGHT MAP_HEIGHT *SIZE
 #define SCREEN_WIDTH MAP_WIDTH *SIZE
+
+#define X_SIZE 4
+#define RAYS_COUNT (int)(SCREEN_WIDTH / X_SIZE)
 
 #define PLAYER_SPEED 1
 
@@ -56,7 +57,6 @@ typedef struct s_data
 	char			*map;
 }					t_data;
 
-
 float	normalize_angle(float angle)
 {
 	angle = fmodf(angle, (2.0f * PI));
@@ -75,8 +75,6 @@ void	on_key_pressed(int key, t_data *data)
 	{
 		adj = cos(data->player.rotation_angle) * 3.5;
 		opo = sin(data->player.rotation_angle) * 3.5;
-		printf("adj : %d", adj);
-		printf("opo : %d", opo);
 		data->player.position.x += adj;
 		data->player.position.y += opo;
 	}
@@ -84,18 +82,16 @@ void	on_key_pressed(int key, t_data *data)
 	{
 		adj = cos(data->player.rotation_angle) * 3.5;
 		opo = sin(data->player.rotation_angle) * 3.5;
-		printf("adj : %d", adj);
-		printf("opo : %d", opo);
 		data->player.position.x -= adj;
 		data->player.position.y -= opo;
 	}
 	if (key == 'a')
 	{
-		data->player.rotation_angle -= 0.25;
+		data->player.rotation_angle -= 0.1;
 	}
 	if (key == 'd')
 	{
-		data->player.rotation_angle += 0.25;
+		data->player.rotation_angle += 0.1;
 	}
 	data->player.rotation_angle = normalize_angle(data->player.rotation_angle);
 }
@@ -110,8 +106,12 @@ int	ft_max(int a, int b)
 
 void	put_pixel_to_buffer(t_img *buffer, t_uvec2 pos, int color)
 {
-	((unsigned int *)buffer->data)[(pos.y * (buffer->size_line / 4))
-		+ pos.x] = color;
+	if (pos.x >= 0 && pos.x < SCREEN_WIDTH && pos.y >= 0
+		&& pos.y < SCREEN_HEIGHT)
+	{
+		((unsigned int *)buffer->data)[(pos.y * (buffer->size_line / 4))
+			+ pos.x] = color;
+	}
 }
 
 void	draw_line(t_img *buffer, int color, t_uvec2 start, t_uvec2 end)
@@ -127,7 +127,7 @@ void	draw_line(t_img *buffer, int color, t_uvec2 start, t_uvec2 end)
 	int		x;
 
 	i = 0;
-	if (end.y - start.y >= end.x - start.x)
+	if (abs(end.y - start.y) > abs(end.x - start.x))
 	{
 		tmp = start;
 		start = end;
@@ -135,16 +135,17 @@ void	draw_line(t_img *buffer, int color, t_uvec2 start, t_uvec2 end)
 	}
 	distance_x = end.x - start.x;
 	distance_y = end.y - start.y;
-	step = ft_max(abs(distance_x), abs(distance_y));
+	step = fmaxf(fabsf(distance_x), fabsf(distance_y));
 	if (step != 0)
 	{
 		stepX = distance_x / step;
 		stepY = distance_y / step;
 	}
-	while (i < step + 1)
+	while (i <= step + 1)
 	{
 		y = roundf(start.y + i * stepY);
-		x = roundf((float)(start.x + i * stepX));
+		x = roundf(start.x + i * stepX);
+		printf("Drawing at x=%d y=%d\n", x, y);
 		put_pixel_to_buffer(buffer, (t_uvec2){x, y}, color);
 		i++;
 	}
@@ -193,7 +194,25 @@ void	draw_map(t_img *buffer, char *map)
 
 void	draw_ray(t_img *buffer, t_player player, float angle, int len)
 {
-	draw_line(buffer, 0xFF0000, (t_uvec2){player.position.x, player.position.y},
+	int		Ay;
+	int	Ax;
+	int		distX;
+	int		distY;
+
+	if (player.rotation_angle >= PI && player.rotation_angle <= 2 * PI)
+		Ay = ((int)player.position.y / SIZE);
+	else
+		Ay = ((int)player.position.y / SIZE) + 1;
+	Ax = (((Ay * SIZE) - player.position.y) / tan(player.rotation_angle))
+		+ player.position.x;
+
+	distX = Ax - player.position.x;
+	distY = (Ay * SIZE) - player.position.y;
+	draw_line(buffer, 0xFF0000, (t_uvec2){(int)player.position.x,
+			(int)player.position.y}, (t_uvec2){(int)player.position.x + (int)distX,
+			(int)player.position.y + (int)distY});
+
+	draw_line(buffer, 0x0DD000, (t_uvec2){player.position.x, player.position.y},
 		(t_uvec2){player.position.x + cos(angle) * len, player.position.y
 		+ sin(angle) * len});
 }
@@ -207,19 +226,20 @@ void	raycaster(t_img *buffer, t_player player, float angle, int len)
 
 void	draw_player(t_img *buffer, t_player player)
 {
-	float	i;
-
+	// float	i;
 	draw_rect(buffer, 0xFF0000, (t_uvec2){((int)player.position.x) - 5,
 		((int)player.position.y) - 5}, (t_uvec2){((int)player.position.x) + 5,
 		((int)player.position.y) + 5});
 	draw_ray(buffer, player, player.rotation_angle, 50);
-	i = player.rotation_angle - FOV / 2 ;
-	while (i <= player.rotation_angle + FOV / 2)
-	{
-		draw_ray(buffer, player, i, 25);
-		i += 0.2;
-		// i++;
-	}
+	// i = 0;
+	// float angle = player.rotation_angle - (FOV / 2);
+	// while (i < RAYS_COUNT)
+	// {
+	// 	draw_ray(buffer, player, angle, 25);
+	// 	i += 1;
+	// 	angle += FOV / RAYS_COUNT;
+	// 	// i++;
+	// }
 	// draw_rect(buffer, 0x0DF0FF, player.position, (t_uvec2){player.position.x
 	// +10, player.position.y + 10
 	// });
