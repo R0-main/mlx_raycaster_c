@@ -6,27 +6,29 @@
 /*   By: rguigneb <rguigneb@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/28 10:15:20 by rguigneb          #+#    #+#             */
-/*   Updated: 2025/04/11 08:36:33 by rguigneb         ###   ########.fr       */
+/*   Updated: 2025/04/11 11:50:57 by rguigneb         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "mlx.h"
 #include "mlx_int.h"
 #include <math.h>
+#include <stdbool.h>
 #include <stdio.h>
 
 #define PI 3.1415926535
 
-#define MAP_HEIGHT 5
-#define MAP_WIDTH 5
+#define MAP_HEIGHT 7
+#define MAP_WIDTH 10
 #define SIZE 64
-#define FOV 60 * (PI / 180)
+#define FOV 75 * (PI / 180)
+#define MAX_ITERATION 10
 
 #define SCREEN_HEIGHT MAP_HEIGHT *SIZE
 #define SCREEN_WIDTH MAP_WIDTH *SIZE
 
 #define X_SIZE 4
-#define RAYS_COUNT 25// (int)((SCREEN_WIDTH) / X_SIZE)
+#define RAYS_COUNT 20 // (int)((SCREEN_WIDTH) / X_SIZE)
 
 #define PLAYER_SPEED 1
 
@@ -35,6 +37,12 @@ typedef struct s_uvec_2
 	unsigned int	x;
 	unsigned int	y;
 }					t_uvec2;
+
+typedef struct s_vec_2
+{
+	int				x;
+	int				y;
+}					t_vec_2;
 
 typedef struct s_fvec_2
 {
@@ -106,12 +114,16 @@ int	ft_max(int a, int b)
 
 void	put_pixel_to_buffer(t_img *buffer, t_uvec2 pos, int color)
 {
-	if (pos.x >= 0 && pos.x < SCREEN_WIDTH && pos.y >= 0
-		&& pos.y < SCREEN_HEIGHT)
-	{
-		((unsigned int *)buffer->data)[(pos.y * (buffer->size_line / 4))
-			+ pos.x] = color;
-	}
+	if (pos.x < 0)
+		pos.x = 0;
+	if (pos.x > SCREEN_WIDTH)
+		pos.x = SCREEN_WIDTH;
+	if (pos.y < 0)
+		pos.y = 0;
+	if (pos.y > SCREEN_HEIGHT)
+		pos.y = SCREEN_HEIGHT;
+	((unsigned int *)buffer->data)[(pos.y * (buffer->size_line / 4))
+		+ pos.x] = color;
 }
 
 void	draw_line(t_img *buffer, int color, t_uvec2 start, t_uvec2 end)
@@ -127,7 +139,7 @@ void	draw_line(t_img *buffer, int color, t_uvec2 start, t_uvec2 end)
 	int		x;
 
 	i = 0;
-	if (abs(end.y - start.y) > abs(end.x - start.x))
+	if (end.y < 0 && abs(end.y - start.y) > abs(end.x - start.x))
 	{
 		tmp = start;
 		start = end;
@@ -177,7 +189,7 @@ void	draw_map(t_img *buffer, char *map)
 		tmp.y = 0;
 		while (tmp.y < MAP_HEIGHT)
 		{
-			if (map[tmp.y * MAP_HEIGHT + tmp.x] == 1)
+			if (map[tmp.y * MAP_WIDTH + tmp.x] == 1)
 				draw_rect(buffer, 0x00FFFF, (t_uvec2){tmp.x * SIZE, tmp.y
 					* SIZE}, (t_uvec2){tmp.x * SIZE + SIZE - 2, tmp.y * SIZE
 					+ SIZE - 2});
@@ -191,54 +203,276 @@ void	draw_map(t_img *buffer, char *map)
 	}
 }
 
-void	draw_ray(t_img *buffer, t_player player, float angle, int len)
+bool	is_wall(char *map, t_vec_2 pos)
 {
-	int		Ay;
-	int	Ax;
-	int		distX;
-	int		distY;
+	if (pos.x < 0)
+		pos.x = 0;
+	if (pos.x > SCREEN_WIDTH)
+		pos.x = SCREEN_WIDTH;
+	if (pos.y < 0)
+		pos.y = 0;
+	if (pos.y > SCREEN_WIDTH)
+		pos.y = SCREEN_HEIGHT;
+	return (map[(pos.y / SIZE) * MAP_WIDTH + (pos.x / SIZE)] == 1);
+}
 
-	if (angle >= PI && angle <= 2 * PI)
-		Ay = ((int)player.position.y / SIZE);
+bool	is_looking_bottom_right(float angle)
+{
+	return (angle >= 0 && angle <= PI / 2);
+}
+
+bool	is_looking_bottom_left(float angle)
+{
+	return (angle >= PI / 2 && angle <= PI);
+}
+
+bool	is_looking_top(float angle)
+{
+	return (angle <= PI && angle >= 0);
+}
+
+bool	is_looking_left(float angle)
+{
+	return (angle <= PI + (PI / 2) && angle >= PI / 2);
+}
+
+bool	is_looking_right(float angle)
+{
+	return (angle >= 0 && angle <= PI / 2 || angle >= PI + (PI / 2)
+		&& angle <= 2 * PI);
+}
+
+bool	is_looking_bottom(float angle)
+{
+	return (angle >= PI && angle <= PI * 2);
+}
+
+bool	is_looking_top_left(float angle)
+{
+	return (angle >= PI && angle <= PI + PI / 2);
+}
+
+bool	is_looking_top_right(float angle)
+{
+	return (angle >= PI + PI / 2 && angle <= 2 * PI);
+}
+
+t_uvec2	get_horizontal_colision(t_fvec2 start, char *map, float angle)
+{
+	t_uvec2	dist;
+	int		i;
+	t_vec_2	A;
+
+	i = 0;
+	dist = (t_uvec2){start.x, start.y};
+	if (is_looking_bottom(angle))
+		A.y = ((int)start.y / SIZE) * SIZE;
 	else
-		Ay = ((int)player.position.y / SIZE) + 1;
-	Ax = (((Ay * SIZE) - player.position.y) / tan(angle))
-		+ player.position.x;
+		A.y = ((int)start.y / SIZE) * SIZE + SIZE;
+	while (i < MAX_ITERATION && A.y / SIZE >= 0 && A.y / SIZE <= MAP_HEIGHT)
+	{
+		A.x = ((A.y - start.y) / tan(angle)) + start.x;
+		if (is_looking_bottom(angle) && is_wall(map, (t_vec_2){A.x, A.y
+				- SIZE}))
+			i = MAX_ITERATION;
+		else if (is_wall(map, A))
+			i = MAX_ITERATION;
+		dist.x = A.x - start.x;
+		dist.y = A.y - start.y;
+		if (is_looking_top(angle))
+			A.y += SIZE;
+		else
+			A.y -= SIZE;
+		i++;
+	}
+	dist.x += start.x;
+	dist.y += start.y;
+	return (dist);
+}
 
-	distX = Ax - player.position.x;
-	distY = (Ay * SIZE) - player.position.y;
+t_uvec2	get_vertical_colision(t_fvec2 start, char *map, float angle)
+{
+	t_uvec2	dist;
+	int		i;
+	t_vec_2	B;
 
-	// printf("")
+	i = 0;
+	dist = (t_uvec2){start.x, start.y};
+	if (is_looking_left(angle))
+		B.x = ((int)start.x / SIZE) * SIZE;
+	else
+		B.x = ((int)start.x / SIZE) * SIZE + SIZE;
+	while (i < MAX_ITERATION && B.x / SIZE >= 0 && B.x / SIZE <= MAP_WIDTH)
+	{
+		B.y = ((int)start.y) + ((int)start.x - B.x) * -tan(angle);
+		if (is_looking_left(angle) && is_wall(map, (t_vec_2){B.x - SIZE, B.y}))
+			i = MAX_ITERATION;
+		else if (is_wall(map, B))
+			i = MAX_ITERATION;
+		dist.x = B.x - start.x;
+		dist.y = B.y - start.y;
+		if (is_looking_left(angle))
+		{
+			B.x -= SIZE;
+		}
+		else
+		{
+			B.x += SIZE;
+		}
+		i++;
+	}
+	dist.x += start.x;
+	dist.y += start.y;
+	// if (dist.x < 0)
+	// dist.x = 0;
+	// if (dist.x > SCREEN_WIDTH)
+	// 	dist.x = SCREEN_WIDTH;
+	// if (dist.y < 0)
+	// 	dist.y = 0;
+	// if (dist.y > SCREEN_HEIGHT)
+	// 	dist.y = SCREEN_HEIGHT;
+	return (dist);
+}
 
+// t_uvec2	get_horizontal_colision(t_fvec2 start, char *map, float angle)
+// {
+// 	t_vec_2 A;
+// 	t_uvec2 dist;
+// 	int i;
+
+// 	i = 0;
+// 	dist = (t_uvec2){start.x, start.y};
+// 	if (angle >= PI && angle <= 2 * PI)
+// 		A.y = ((int)start.y / SIZE);
+// 	else
+// 		A.y = ((int)start.y / SIZE) + 1;
+// 	while (i < MAX_ITERATION && A.y >= 0 && A.y <= MAP_HEIGHT)
+// 	{
+// 		A.x = (((A.y * SIZE) - start.y) / tan(angle))
+// 			+ start.x;
+// 		if (angle >= PI && angle <= 2 * PI && map[(A.y - 1) * MAP_HEIGHT
+// 			+ (A.x / SIZE)] == 1)
+// 			i = MAX_ITERATION;
+// 		else if (map[(A.y) * MAP_HEIGHT + (A.x / SIZE)] == 1)
+// 			i = MAX_ITERATION;
+// 		dist.x = A.x - start.x;
+// 		dist.y = (A.y * SIZE) - start.y;
+// 		if (angle >= PI && angle <= 2 * PI)
+// 			A.y--;
+// 		else
+// 			A.y++;
+// 		i++;
+// 	}
+// 	dist.x += start.x;
+// 	dist.y += start.y;
+// 	return (dist);
+// }
+
+// t_uvec2	get_vertical_colision(t_fvec2 start, char *map, float angle)
+// {
+// 	t_vec_2 A;
+// 	t_uvec2 dist;
+// 	int i;
+
+// 	i = 0;
+// 	dist = (t_uvec2){start.x, start.y};
+// 	if (angle >= PI / 2 && angle <= PI + 2 * PI)
+// 		A.x = ((int)start.x / SIZE);
+// 	else
+// 		A.x = ((int)start.x / SIZE) + 1;
+// 	while (i < MAX_ITERATION && A.x >= 0 && A.x <= MAP_WIDTH)
+// 	{
+// 		A.y = (int)start.y + ((int)start.x - (A.x * SIZE)) * tan(angle);
+// 		// if (angle >= PI / 2 && angle <= PI + 2 * PI && map[(A.y) * MAP_HEIGHT
+// 		// 	+ ((A.x) * SIZE)] == 1)
+// 		// 	i = MAX_ITERATION;
+// 		// else if (map[(A.y) * MAP_HEIGHT + (A.x * SIZE)] == 1)
+// 		// 	i = MAX_ITERATION;
+// 		dist.x = (A.x * SIZE) - start.x;
+// 		dist.y = A.y - start.y;
+// 		if (angle >= PI / 2 && angle <= PI + 2 * PI)
+// 			A.x++;
+// 		else
+// 			A.x--;
+// 		i++;
+// 	}
+// 	dist.x += start.x;
+// 	dist.y += start.y;
+// 	return (dist);
+// }
+
+int	distance_between(t_uvec2 vec1, t_uvec2 vec2)
+{
+	int	dx;
+	int	dy;
+
+	dx = (int)vec2.x - (int)vec1.x;
+	dy = (int)vec2.y - (int)vec1.y;
+	return (int)(sqrt(dx * dx + dy * dy));
+}
+
+void	draw_ray(t_img *buffer, t_player player, t_data *data, float angle,
+		int len)
+{
+	t_uvec2	vert;
+	t_uvec2	hori;
+	t_uvec2	pos;
+
+	// int	Bx;
+	// int	By;
+	// if (angle >= PI / 2 && angle <= PI + PI / 2)
+	// 	Bx = (player.position.x / SIZE);
+	// else
+	// 	Bx = (player.position.x / SIZE) + 1;
+	// By = ((int)player.position.y) + ((int)player.position.x - (Bx * SIZE))
+	// * tan(angle);
+	// distX = (Bx * SIZE) - player.position.x;
+	// distY = By - player.position.y;
+	vert = get_vertical_colision(player.position, data->map, angle);
+	hori = get_horizontal_colision(player.position, data->map, angle);
+	if (distance_between((t_uvec2){(int)player.position.x,
+			(int)player.position.y},
+			hori) < distance_between((t_uvec2){(int)player.position.x,
+			(int)player.position.y}, vert))
+		pos = hori;
+	else
+		pos = vert;
 	draw_line(buffer, 0xFF0000, (t_uvec2){(int)player.position.x,
-			(int)player.position.y}, (t_uvec2){(int)player.position.x + (int)distX,
-			(int)player.position.y + (int)distY});
-
-	// draw_line(buffer, 0x0DD000, (t_uvec2){player.position.x, player.position.y},
+		(int)player.position.y}, (t_uvec2)pos);
+	// draw_line(buffer, 0x00DD00, (t_uvec2){(int)player.position.x,
+	// 	(int)player.position.y}, (t_uvec2)hori);
+	// draw_line(buffer, 0x0000DD, (t_uvec2){(int)player.position.x,
+	// 		(int)player.position.y}, (t_uvec2)vert);
+	// draw_line(buffer, 0x0DD000, (t_uvec2){player.position.x,
+	// player.position.y},
 	// 	(t_uvec2){player.position.x + cos(angle) * len, player.position.y
 	// 	+ sin(angle) * len});
 }
 
 void	raycaster(t_img *buffer, t_player player, float angle, int len)
 {
-	draw_line(buffer, 0xFF0000, (t_uvec2){player.position.x, player.position.y},
+	draw_line(buffer, 0xFF00FF, (t_uvec2){player.position.x, player.position.y},
 		(t_uvec2){player.position.x + cos(angle) * len, player.position.y
 		+ sin(angle) * len});
 }
 
-void	draw_player(t_img *buffer, t_player player)
+void	draw_player(t_img *buffer, t_data *data, t_player player)
 {
 	float	i;
+	float	angle;
+
 	draw_rect(buffer, 0xFF0000, (t_uvec2){((int)player.position.x) - 5,
 		((int)player.position.y) - 5}, (t_uvec2){((int)player.position.x) + 5,
 		((int)player.position.y) + 5});
-	draw_ray(buffer, player, player.rotation_angle, 50);
+	raycaster(buffer, player, player.rotation_angle, 150);
+	// printf("rotaton %02f\n", player.rotation_angle * PI * 180);
+	draw_ray(buffer, player, data, player.rotation_angle, 50);
 	// draw_ray(buffer, player, player.rotation_angle + 0.1, 50);
 	i = 0;
-	float angle = player.rotation_angle - (FOV / 2);
+	angle = player.rotation_angle - (FOV / 2);
 	while (i < RAYS_COUNT)
 	{
-		draw_ray(buffer, player, normalize_angle(angle), 25);
+		draw_ray(buffer, player, data, normalize_angle(angle), 25);
 		i += 1;
 		angle += FOV / RAYS_COUNT;
 		// i++;
@@ -261,7 +495,7 @@ void	loop(t_data *data)
 	draw_rect(data->rendering_buffer, 0x00DF0F, (t_uvec2){90, 90},
 		(t_uvec2){120, 99});
 	draw_map(data->rendering_buffer, data->map);
-	draw_player(data->rendering_buffer, data->player);
+	draw_player(data->rendering_buffer, data, data->player);
 	mlx_put_image_to_window(data->mlx, data->win, data->rendering_buffer, 0, 0);
 }
 
@@ -274,14 +508,14 @@ int	destroy_close(t_data *data)
 int	main(int argc, char const *argv[])
 {
 	t_data	data;
+	char	map[MAP_HEIGHT * MAP_WIDTH] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0,
+			0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0,
+			0, 1, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0,
+			0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
-	char map[MAP_HEIGHT * MAP_WIDTH] = {
-		1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1,
-			1,
-	};
 	bzero(&data, sizeof(t_data));
-	data.player.position.x = SCREEN_WIDTH / 2;
-	data.player.position.y = SCREEN_HEIGHT / 2;
+	data.player.position.x = SCREEN_WIDTH / 2 - SIZE;
+	data.player.position.y = SCREEN_HEIGHT / 2 - SIZE;
 	data.player.rotation_angle = 45 * (PI / 180);
 	data.map = (char *)&map;
 	data.mlx = mlx_init();
@@ -312,4 +546,14 @@ int	main(int argc, char const *argv[])
 // 	1, 0, 0, 0, 1,
 // 	1, 0, 0, 0, 1,
 // 	1, 1, 1, 1, 1,
+// };
+
+// char map[MAP_HEIGHT * MAP_WIDTH] = {
+// 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+// 1, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+// 1, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+// 1, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+// 1, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+// 1, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+// 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
 // };
