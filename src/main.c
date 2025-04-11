@@ -6,7 +6,7 @@
 /*   By: rguigneb <rguigneb@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/28 10:15:20 by rguigneb          #+#    #+#             */
-/*   Updated: 2025/04/11 11:50:57 by rguigneb         ###   ########.fr       */
+/*   Updated: 2025/04/11 12:36:00 by rguigneb         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -305,9 +305,9 @@ t_uvec2	get_vertical_colision(t_fvec2 start, char *map, float angle)
 	while (i < MAX_ITERATION && B.x / SIZE >= 0 && B.x / SIZE <= MAP_WIDTH)
 	{
 		B.y = ((int)start.y) + ((int)start.x - B.x) * -tan(angle);
-		if (is_looking_left(angle) && is_wall(map, (t_vec_2){B.x - SIZE, B.y}))
+		if (is_wall(map, (t_vec_2){B.x - SIZE, B.y}))
 			i = MAX_ITERATION;
-		else if (is_wall(map, B))
+		if (is_wall(map, B))
 			i = MAX_ITERATION;
 		dist.x = B.x - start.x;
 		dist.y = B.y - start.y;
