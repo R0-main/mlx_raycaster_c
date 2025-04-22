@@ -6,7 +6,7 @@
 /*   By: rguigneb <rguigneb@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/28 10:15:20 by rguigneb          #+#    #+#             */
-/*   Updated: 2025/04/22 12:36:31 by rguigneb         ###   ########.fr       */
+/*   Updated: 2025/04/22 13:02:09 by rguigneb         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -75,7 +75,7 @@ typedef struct s_data
 
 double	normalize_angle(double angle)
 {
-	angle = fmodf(angle, (2.0f * PI));
+	angle = fmod(angle, (2.0f * PI));
 	if (angle < 0)
 		angle += (2.0f * PI);
 	return (angle);
@@ -112,17 +112,16 @@ void	on_key_pressed(int key, t_data *data)
 	data->player.rotation_angle = normalize_angle(data->player.rotation_angle);
 }
 
-int	get_distance_from_the_camera(t_data *data)
+double	get_distance_from_the_camera(t_data *data)
 {
 	double	half_screen;
 	double	half_fov;
 
 	half_screen = SCREEN_WIDTH / 2;
 	half_fov = FOV / 2;
-	return (half_screen / tan(half_fov));
+	return ((double)(half_screen / tan(half_fov)));
 }
 
-// t_img *create_re
 double	ft_max(double a, double b)
 {
 	if (a > b)
@@ -146,8 +145,8 @@ void	put_pixel_to_buffer(t_img *buffer, t_uvec2 pos, int color)
 
 void	draw_line(t_img *buffer, int color, t_vec_2 start, t_vec_2 end)
 {
-	double		distance_x;
-	double		distance_y;
+	double	distance_x;
+	double	distance_y;
 	double	step;
 	double	stepX;
 	double	stepY;
@@ -173,8 +172,8 @@ void	draw_line(t_img *buffer, int color, t_vec_2 start, t_vec_2 end)
 	}
 	while (i <= step + 1)
 	{
-		y = roundf(start.y + i * stepY);
-		x = roundf(start.x + i * stepX);
+		y = lround(start.y + i * stepY);
+		x = lround(start.x + i * stepX);
 		put_pixel_to_buffer(buffer, (t_uvec2){x, y}, color);
 		i++;
 	}
@@ -307,14 +306,14 @@ t_vec_2	get_horizontal_colision(t_img *buffer, t_dvec2 start, char *map,
 {
 	int		i;
 	t_dvec2	A;
-	double		Ya;
-	double		Xa;
+	double	Ya;
+	double	Xa;
 
 	i = 0;
 	if (is_looking_bottom(angle))
-		A.y = ((int)start.y / SIZE) * SIZE - 1.0f;
+		A.y = ((int)lround(start.y) / SIZE) * SIZE - 1.0f;
 	else
-		A.y = ((int)start.y / SIZE) * SIZE + SIZE;
+		A.y = ((int)lround(start.y) / SIZE) * SIZE + SIZE;
 	if (is_looking_bottom(angle))
 		Ya = -SIZE;
 	else
@@ -323,31 +322,31 @@ t_vec_2	get_horizontal_colision(t_img *buffer, t_dvec2 start, char *map,
 	Xa = Ya / tan(angle);
 	while (i < MAX_ITERATION && A.y / SIZE >= 0 && A.y / SIZE <= MAP_HEIGHT)
 	{
-		if (is_wall(map, (t_vec_2){(int)round(A.x), (int)round(A.y)}))
+		if (is_wall(map, (t_vec_2){(int)lround(A.x), (int)lround(A.y)}))
 			break ;
 		// draw_rect(buffer, 0x0000DD, (t_uvec2){A.x - 2, A.y - 2},
-			// (t_uvec2){A.x
+		// (t_uvec2){A.x
 		// 	+ 2, A.y + 2});
 		A.x += Xa;
 		A.y += Ya;
 		i++;
 	}
-	return ((t_vec_2){(int)A.x, (int)A.y});
+	return ((t_vec_2){(int)lround(A.x), (int)lround(A.y)});
 }
 
 t_vec_2	get_vertical_colision(t_img *buffer, t_dvec2 start, char *map,
-	double angle)
+		double angle)
 {
 	int		i;
 	t_dvec2	B;
-	double		Xa;
-	double		Ya;
+	double	Xa;
+	double	Ya;
 
 	i = 0;
 	if (is_looking_left(angle))
-		B.x = ((int)start.x / SIZE) * SIZE - 1.0f;
+		B.x = ((int)lround(start.x) / SIZE) * SIZE - 1.0f;
 	else
-		B.x = ((int)start.x / SIZE) * SIZE + SIZE;
+		B.x = ((int)lround(start.x) / SIZE) * SIZE + SIZE;
 	B.y = start.y + (start.x - B.x) * -tan(angle);
 	if (is_looking_left(angle))
 		Xa = -SIZE;
@@ -356,16 +355,16 @@ t_vec_2	get_vertical_colision(t_img *buffer, t_dvec2 start, char *map,
 	Ya = Xa * tan(angle);
 	while (i < MAX_ITERATION && B.x / SIZE >= 0 && B.x / SIZE <= MAP_WIDTH)
 	{
-		if (is_wall(map, (t_vec_2){(int)round(B.x), (int)round(B.y)}))
+		if (is_wall(map, (t_vec_2){(int)lround(B.x), (int)lround(B.y)}))
 			break ;
 		// draw_rect(buffer, 0xDDDD00, (t_uvec2){B.x - 2, B.y - 2},
-			// (t_uvec2){B.x
+		// (t_uvec2){B.x
 		// 	+ 2, B.y + 2});
 		B.x += Xa;
 		B.y += Ya;
 		i++;
 	}
-	return ((t_vec_2){(int)(B.x), (int)(B.y)});
+	return ((t_vec_2){(int)lround(B.x ), (int)lround(B.y)});
 }
 
 // t_uvec2	get_horizontal_colision(t_fvec2 start, char *map, float angle)
@@ -437,12 +436,12 @@ t_vec_2	get_vertical_colision(t_img *buffer, t_dvec2 start, char *map,
 
 double	distance_between(t_dvec2 vec1, t_vec_2 vec2)
 {
-	double mx;
-	double my;
+	double	mx;
+	double	my;
 
 	mx = ft_max(vec1.x - vec2.x, vec2.x - vec1.x);
 	my = ft_max(vec1.y - vec2.y, vec2.y - vec1.y);
-	return (sqrtf(my * my + mx * mx));
+	return (sqrtf(mx * mx + my * my));
 }
 
 void	draw_ray(t_img *buffer, t_player player, t_data *data, double angle,
@@ -493,8 +492,8 @@ void	draw_ray(t_img *buffer, t_player player, t_data *data, double angle,
 	// 	(int)player.position.y}, (t_vec_2)hori);
 	// draw_line(buffer, 0x0000DD, (t_uvec2){(int)player.position.x,
 	// 	(int)player.position.y}, (t_uvec2)vert);
-	draw_line(data->debug_rendering_buffer, color, (t_vec_2){(int)player.position.x,
-		(int)player.position.y}, pos);
+	draw_line(data->debug_rendering_buffer, color,
+		(t_vec_2){(int)lround(player.position.x), (int)lround(player.position.y)}, pos);
 	distance = distance_between(player.position, pos);
 	r = get_distance_from_the_camera(data);
 	height = (32 / distance) * r;
@@ -522,7 +521,6 @@ void	draw_player(t_img *buffer, t_data *data, t_player player)
 	// draw_rect(buffer, 0xFF0000, (t_uvec2){((int)player.position.x) - 5,
 	// 	((int)player.position.y) - 5}, (t_uvec2){((int)player.position.x) + 5,
 	// 	((int)player.position.y) + 5});
-	// raycaster(buffer, player, player.rotation_angle, 15);
 	// // printf("rotaton %02f\n", player.rotation_angle * PI * 180);
 	// draw_ray(buffer, player, data, player.rotation_angle, SCREEN_WIDTH / 2);
 	i = 0;
@@ -536,6 +534,7 @@ void	draw_player(t_img *buffer, t_data *data, t_player player)
 		angle += FOV / RAYS_COUNT;
 		// i++;
 	}
+	raycaster(data->debug_rendering_buffer, player, player.rotation_angle, 15);
 	// draw_rect(buffer, 0x0DF0FF, player.position, (t_uvec2){player.position.x
 	// +10, player.position.y + 10
 	// });
@@ -549,8 +548,8 @@ void	draw_sky(t_data *data)
 
 void	draw_floor(t_data *data)
 {
-	draw_rect(data->rendering_buffer, 0X8A6500, (t_uvec2){0,
-		SCREEN_HEIGHT / 2}, (t_uvec2){SCREEN_WIDTH, SCREEN_HEIGHT - 1});
+	draw_rect(data->rendering_buffer, 0X8A6500, (t_uvec2){0, SCREEN_HEIGHT / 2},
+		(t_uvec2){SCREEN_WIDTH, SCREEN_HEIGHT - 1});
 }
 
 void	loop(t_data *data)
@@ -576,7 +575,8 @@ void	loop(t_data *data)
 	draw_map(data->debug_rendering_buffer, data->map);
 	draw_player(data->rendering_buffer, data, data->player);
 	mlx_put_image_to_window(data->mlx, data->win, data->rendering_buffer, 0, 0);
-	mlx_put_image_to_window(data->mlx, data->debug_win, data->debug_rendering_buffer, 0, 0);
+	mlx_put_image_to_window(data->mlx, data->debug_win,
+		data->debug_rendering_buffer, 0, 0);
 }
 
 int	destroy_close(t_data *data)
