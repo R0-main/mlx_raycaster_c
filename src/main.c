@@ -6,7 +6,7 @@
 /*   By: rguigneb <rguigneb@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/28 10:15:20 by rguigneb          #+#    #+#             */
-/*   Updated: 2025/04/22 13:02:09 by rguigneb         ###   ########.fr       */
+/*   Updated: 2025/04/22 16:19:10 by rguigneb         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -20,17 +20,17 @@
 
 #define MAP_HEIGHT 7
 #define MAP_WIDTH 10
-#define SIZE 64
-#define FOV 60 * (PI / 180)
+#define SIZE 84
+#define FOV 40 * (PI / 180)
 #define MAX_ITERATION 10
 
 #define SCREEN_HEIGHT MAP_HEIGHT *SIZE
 #define SCREEN_WIDTH MAP_WIDTH *SIZE
 
-#define X_SIZE 1
+#define X_SIZE 2
 #define RAYS_COUNT (int)((SCREEN_WIDTH) / X_SIZE)
 
-#define PLAYER_SPEED 1
+#define PLAYER_SPEED 2
 
 typedef struct s_uvec_2
 {
@@ -172,8 +172,8 @@ void	draw_line(t_img *buffer, int color, t_vec_2 start, t_vec_2 end)
 	}
 	while (i <= step + 1)
 	{
-		y = lround(start.y + i * stepY);
-		x = lround(start.x + i * stepX);
+		y = floor(start.y + i * stepY);
+		x = floor(start.x + i * stepX);
 		put_pixel_to_buffer(buffer, (t_uvec2){x, y}, color);
 		i++;
 	}
@@ -208,12 +208,12 @@ void	draw_straight_line(t_img *buffer, int color, int x, int height)
 		put_pixel_to_buffer(buffer, (t_uvec2){x, y}, color);
 		y++;
 	}
-	// y = t;
-	// while (y < SCREEN_HEIGHT - t)
-	// {
-	// 	put_pixel_to_buffer(buffer, (t_uvec2){x + 1, y}, color);
-	// 	y++;
-	// }
+	y = t;
+	while (y < SCREEN_HEIGHT - t)
+	{
+		put_pixel_to_buffer(buffer, (t_uvec2){x + 1, y}, color);
+		y++;
+	}
 	// y = t;
 	// while (y < SCREEN_HEIGHT - t)
 	// {
@@ -311,27 +311,26 @@ t_vec_2	get_horizontal_colision(t_img *buffer, t_dvec2 start, char *map,
 
 	i = 0;
 	if (is_looking_bottom(angle))
-		A.y = ((int)lround(start.y) / SIZE) * SIZE - 1.0f;
+		A.y = floor((int)floor(start.y) / SIZE) * SIZE;
 	else
-		A.y = ((int)lround(start.y) / SIZE) * SIZE + SIZE;
+		A.y = floor((int)floor(start.y) / SIZE) * SIZE + SIZE;
 	if (is_looking_bottom(angle))
 		Ya = -SIZE;
 	else
 		Ya = SIZE;
 	A.x = ((A.y - start.y) / tan(angle)) + start.x;
+	if (is_looking_bottom(angle))
+		A.y--;
 	Xa = Ya / tan(angle);
 	while (i < MAX_ITERATION && A.y / SIZE >= 0 && A.y / SIZE <= MAP_HEIGHT)
 	{
-		if (is_wall(map, (t_vec_2){(int)lround(A.x), (int)lround(A.y)}))
+		if (is_wall(map, (t_vec_2){(int)(A.x), (int)(A.y)}))
 			break ;
-		// draw_rect(buffer, 0x0000DD, (t_uvec2){A.x - 2, A.y - 2},
-		// (t_uvec2){A.x
-		// 	+ 2, A.y + 2});
 		A.x += Xa;
 		A.y += Ya;
 		i++;
 	}
-	return ((t_vec_2){(int)lround(A.x), (int)lround(A.y)});
+	return ((t_vec_2){(int)floor(A.x), (int)floor(A.y)});
 }
 
 t_vec_2	get_vertical_colision(t_img *buffer, t_dvec2 start, char *map,
@@ -344,95 +343,27 @@ t_vec_2	get_vertical_colision(t_img *buffer, t_dvec2 start, char *map,
 
 	i = 0;
 	if (is_looking_left(angle))
-		B.x = ((int)lround(start.x) / SIZE) * SIZE - 1.0f;
+		B.x = floor((int)floor(start.x) / SIZE) * SIZE;
 	else
-		B.x = ((int)lround(start.x) / SIZE) * SIZE + SIZE;
+		B.x = floor((int)floor(start.x) / SIZE) * SIZE + SIZE;
 	B.y = start.y + (start.x - B.x) * -tan(angle);
 	if (is_looking_left(angle))
 		Xa = -SIZE;
 	else
 		Xa = SIZE;
 	Ya = Xa * tan(angle);
+	if (is_looking_left(angle))
+		B.x--;
 	while (i < MAX_ITERATION && B.x / SIZE >= 0 && B.x / SIZE <= MAP_WIDTH)
 	{
-		if (is_wall(map, (t_vec_2){(int)lround(B.x), (int)lround(B.y)}))
+		if (is_wall(map, (t_vec_2){(int)floor(B.x), (int)floor(B.y)}))
 			break ;
-		// draw_rect(buffer, 0xDDDD00, (t_uvec2){B.x - 2, B.y - 2},
-		// (t_uvec2){B.x
-		// 	+ 2, B.y + 2});
 		B.x += Xa;
 		B.y += Ya;
 		i++;
 	}
-	return ((t_vec_2){(int)lround(B.x ), (int)lround(B.y)});
+	return ((t_vec_2){(int)floor(B.x), (int)floor(B.y)});
 }
-
-// t_uvec2	get_horizontal_colision(t_fvec2 start, char *map, float angle)
-// {
-// 	t_vec_2 A;
-// 	t_uvec2 dist;
-// 	int i;
-
-// 	i = 0;
-// 	dist = (t_uvec2){start.x, start.y};
-// 	if (angle >= PI && angle <= 2 * PI)
-// 		A.y = ((int)start.y / SIZE);
-// 	else
-// 		A.y = ((int)start.y / SIZE) + 1;
-// 	while (i < MAX_ITERATION && A.y >= 0 && A.y <= MAP_HEIGHT)
-// 	{
-// 		A.x = (((A.y * SIZE) - start.y) / tan(angle))
-// 			+ start.x;
-// 		if (angle >= PI && angle <= 2 * PI && map[(A.y - 1) * MAP_HEIGHT
-// 			+ (A.x / SIZE)] == 1)
-// 			i = MAX_ITERATION;
-// 		else if (map[(A.y) * MAP_HEIGHT + (A.x / SIZE)] == 1)
-// 			i = MAX_ITERATION;
-// 		dist.x = A.x - start.x;
-// 		dist.y = (A.y * SIZE) - start.y;
-// 		if (angle >= PI && angle <= 2 * PI)
-// 			A.y--;
-// 		else
-// 			A.y++;
-// 		i++;
-// 	}
-// 	dist.x += start.x;
-// 	dist.y += start.y;
-// 	return (dist);
-// }
-
-// t_uvec2	get_vertical_colision(t_fvec2 start, char *map, float angle)
-// {
-// 	t_vec_2 A;
-// 	t_uvec2 dist;
-// 	int i;
-
-// 	i = 0;
-// 	dist = (t_uvec2){start.x, start.y};
-// 	if (angle >= PI / 2 && angle <= PI + 2 * PI)
-// 		A.x = ((int)start.x / SIZE);
-// 	else
-// 		A.x = ((int)start.x / SIZE) + 1;
-// 	while (i < MAX_ITERATION && A.x >= 0 && A.x <= MAP_WIDTH)
-// 	{
-// 		A.y = (int)start.y + ((int)start.x - (A.x * SIZE)) * tan(angle);
-// 		// if (angle >= PI / 2 && angle <= PI + 2 * PI && map[(A.y) * MAP_HEIGHT
-// 		// 	+ ((A.x) * SIZE)] == 1)
-// 		// 	i = MAX_ITERATION;
-// 		// else if (map[(A.y) * MAP_HEIGHT + (A.x * SIZE)] == 1)
-// 		// 	i = MAX_ITERATION;
-// 		dist.x = (A.x * SIZE) - start.x;
-// 		dist.y = A.y - start.y;
-// 		if (angle >= PI / 2 && angle <= PI + 2 * PI)
-// 			A.x++;
-// 		else
-// 			A.x--;
-// 		i++;
-// 	}
-// 	dist.x += start.x;
-// 	dist.y += start.y;
-// 	return (dist);
-// }
 
 double	distance_between(t_dvec2 vec1, t_vec_2 vec2)
 {
@@ -444,29 +375,47 @@ double	distance_between(t_dvec2 vec1, t_vec_2 vec2)
 	return (sqrtf(mx * mx + my * my));
 }
 
+typedef unsigned int t_color;
+
+t_color igmlx_melt_colors(t_color input, t_color filter)
+{
+	t_color result;
+	t_color alpha, red, green, blue;
+	t_color f_alpha, f_red, f_green, f_blue;
+	double filter_weight = 0.8;
+	double input_weight = 1.0 - filter_weight;
+
+	alpha = (input >> 24) & 0xFF;
+	red = (input >> 16) & 0xFF;
+	green = (input >> 8) & 0xFF;
+	blue = input & 0xFF;
+
+	f_alpha = (filter >> 24) & 0xFF;
+	f_red = (filter >> 16) & 0xFF;
+	f_green = (filter >> 8) & 0xFF;
+	f_blue = filter & 0xFF;
+
+	alpha = (alpha * input_weight) + (f_alpha * filter_weight);
+	red = (red * input_weight) + (f_red * filter_weight);
+	green = (green * input_weight) + (f_green * filter_weight);
+	blue = (blue * input_weight) + (f_blue * filter_weight);
+
+	result = ((t_color)alpha << 24) | ((t_color)red << 16) | ((t_color)green << 8) | (t_color)blue;
+	return result;
+}
+
 void	draw_ray(t_img *buffer, t_player player, t_data *data, double angle,
 		int i)
 {
 	t_vec_2	vert;
 	t_vec_2	hori;
 	t_vec_2	pos;
-	double	height;
-	double	start;
-	double	distance;
-	double	r;
+	int	height;
+	long double	distance;
+	long double	r;
 	int		color;
 
-	// ((unsigned int *)buffer->data)[y * (buffer->size_line / 4) + x]
-	// int	Bx;
-	// int	By;
-	// if (angle >= PI / 2 && angle <= PI + PI / 2)
-	// 	Bx = (player.position.x / SIZE);
-	// else
-	// 	Bx = (player.position.x / SIZE) + 1;
-	// By = ((int)player.position.y) + ((int)player.position.x - (Bx * SIZE))
-	// * tan(angle);
-	// distX = (Bx * SIZE) - player.position.x;
-	// distY = By - player.position.y;
+
 	vert = get_vertical_colision(data->rendering_buffer, player.position,
 			data->map, angle);
 	hori = get_horizontal_colision(data->rendering_buffer, player.position,
@@ -480,29 +429,24 @@ void	draw_ray(t_img *buffer, t_player player, t_data *data, double angle,
 	{
 		pos = hori;
 		color = 0x00EE00;
-		// color = 0xFF0000;
 	}
 	else
 	{
 		pos = vert;
 		color = 0x00DD00;
 	}
-	// printf("choosen : %d %d\n", pos.x, pos.y);
-	// draw_line(buffer, 0x00DD00, (t_vec_2){(int)player.position.x,
-	// 	(int)player.position.y}, (t_vec_2)hori);
-	// draw_line(buffer, 0x0000DD, (t_uvec2){(int)player.position.x,
-	// 	(int)player.position.y}, (t_uvec2)vert);
 	draw_line(data->debug_rendering_buffer, color,
-		(t_vec_2){(int)lround(player.position.x), (int)lround(player.position.y)}, pos);
+		(t_vec_2){(int)floor(player.position.x), (int)floor(player.position.y)},
+		pos);
+
+	long double a = player.rotation_angle - angle;
 	distance = distance_between(player.position, pos);
+	distance *= cos(a);
+
 	r = get_distance_from_the_camera(data);
-	height = (32 / distance) * r;
-	start = (SCREEN_HEIGHT / 2) - (height / 2);
+	height = ((long double)(64 / distance) * r);
+	color = (color >> 1) & 8355711;
 	draw_straight_line(buffer, color, i, height);
-	// draw_line(buffer, 0x0DD000, (t_uvec2){player.position.x,
-	// player.position.y},
-	// 	(t_uvec2){player.position.x + cos(angle) * len, player.position.y
-	// 	+ sin(angle) * len});
 }
 
 void	raycaster(t_img *buffer, t_player player, double angle, int len)
@@ -518,11 +462,9 @@ void	draw_player(t_img *buffer, t_data *data, t_player player)
 	double	angle;
 	int		x;
 
-	// draw_rect(buffer, 0xFF0000, (t_uvec2){((int)player.position.x) - 5,
-	// 	((int)player.position.y) - 5}, (t_uvec2){((int)player.position.x) + 5,
-	// 	((int)player.position.y) + 5});
-	// // printf("rotaton %02f\n", player.rotation_angle * PI * 180);
-	// draw_ray(buffer, player, data, player.rotation_angle, SCREEN_WIDTH / 2);
+	draw_rect(data->debug_rendering_buffer, 0xFF0000, (t_uvec2){((int)player.position.x) - 5,
+		((int)player.position.y) - 5}, (t_uvec2){((int)player.position.x) + 5,
+		((int)player.position.y) + 5});
 	i = 0;
 	x = 0;
 	angle = player.rotation_angle - (FOV / 2);
@@ -532,12 +474,8 @@ void	draw_player(t_img *buffer, t_data *data, t_player player)
 		i += 1;
 		x += X_SIZE;
 		angle += FOV / RAYS_COUNT;
-		// i++;
 	}
 	raycaster(data->debug_rendering_buffer, player, player.rotation_angle, 15);
-	// draw_rect(buffer, 0x0DF0FF, player.position, (t_uvec2){player.position.x
-	// +10, player.position.y + 10
-	// });
 }
 
 void	draw_sky(t_data *data)
