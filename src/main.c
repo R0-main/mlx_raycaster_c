@@ -6,7 +6,7 @@
 /*   By: rguigneb <rguigneb@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/28 10:15:20 by rguigneb          #+#    #+#             */
-/*   Updated: 2025/04/22 16:19:10 by rguigneb         ###   ########.fr       */
+/*   Updated: 2025/04/23 09:33:09 by rguigneb         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -21,7 +21,7 @@
 #define MAP_HEIGHT 7
 #define MAP_WIDTH 10
 #define SIZE 84
-#define FOV 40 * (PI / 180)
+#define FOV (double)(60 * (PI / 180))
 #define MAX_ITERATION 10
 
 #define SCREEN_HEIGHT MAP_HEIGHT *SIZE
@@ -34,44 +34,44 @@
 
 typedef struct s_uvec_2
 {
-	unsigned int	x;
-	unsigned int	y;
-}					t_uvec2;
+	unsigned int		x;
+	unsigned int		y;
+}						t_uvec2;
 
 typedef struct s_vec_2
 {
-	int				x;
-	int				y;
-}					t_vec_2;
+	int					x;
+	int					y;
+}						t_vec_2;
 
 typedef struct s_fvec_2
 {
-	float			x;
-	float			y;
-}					t_fvec2;
+	float				x;
+	float				y;
+}						t_fvec2;
 
 typedef struct s_dvec_2
 {
-	double			x;
-	double			y;
-}					t_dvec2;
+	double				x;
+	double				y;
+}						t_dvec2;
 
 typedef struct s_player
 {
-	t_dvec2			position;
-	double			rotation_angle;
-}					t_player;
+	t_dvec2				position;
+	double				rotation_angle;
+}						t_player;
 
 typedef struct s_data
 {
-	void			*mlx;
-	void			*win;
-	void			*debug_win;
-	t_img			*debug_rendering_buffer;
-	t_img			*rendering_buffer;
-	t_player		player;
-	char			*map;
-}					t_data;
+	void				*mlx;
+	void				*win;
+	void				*debug_win;
+	t_img				*debug_rendering_buffer;
+	t_img				*rendering_buffer;
+	t_player			player;
+	char				*map;
+}						t_data;
 
 double	normalize_angle(double angle)
 {
@@ -112,15 +112,7 @@ void	on_key_pressed(int key, t_data *data)
 	data->player.rotation_angle = normalize_angle(data->player.rotation_angle);
 }
 
-double	get_distance_from_the_camera(t_data *data)
-{
-	double	half_screen;
-	double	half_fov;
-
-	half_screen = SCREEN_WIDTH / 2;
-	half_fov = FOV / 2;
-	return ((double)(half_screen / tan(half_fov)));
-}
+#define DISTANCE_FROM_CAMERA (double)((SCREEN_WIDTH / 2) / tan(FOV / 2))
 
 double	ft_max(double a, double b)
 {
@@ -301,7 +293,7 @@ bool	is_looking_top_right(double angle)
 	return (angle >= PI + PI / 2 && angle <= 2 * PI);
 }
 
-t_vec_2	get_horizontal_colision(t_img *buffer, t_dvec2 start, char *map,
+t_dvec2	get_horizontal_colision(t_img *buffer, t_dvec2 start, char *map,
 		double angle)
 {
 	int		i;
@@ -320,20 +312,20 @@ t_vec_2	get_horizontal_colision(t_img *buffer, t_dvec2 start, char *map,
 		Ya = SIZE;
 	A.x = ((A.y - start.y) / tan(angle)) + start.x;
 	if (is_looking_bottom(angle))
-		A.y--;
+		A.y -= 0.001f;
 	Xa = Ya / tan(angle);
 	while (i < MAX_ITERATION && A.y / SIZE >= 0 && A.y / SIZE <= MAP_HEIGHT)
 	{
-		if (is_wall(map, (t_vec_2){(int)(A.x), (int)(A.y)}))
+		if (is_wall(map, (t_vec_2){(int)floor(A.x), (int)floor(A.y)}))
 			break ;
 		A.x += Xa;
 		A.y += Ya;
 		i++;
 	}
-	return ((t_vec_2){(int)floor(A.x), (int)floor(A.y)});
+	return (A);
 }
 
-t_vec_2	get_vertical_colision(t_img *buffer, t_dvec2 start, char *map,
+t_dvec2	get_vertical_colision(t_img *buffer, t_dvec2 start, char *map,
 		double angle)
 {
 	int		i;
@@ -353,7 +345,7 @@ t_vec_2	get_vertical_colision(t_img *buffer, t_dvec2 start, char *map,
 		Xa = SIZE;
 	Ya = Xa * tan(angle);
 	if (is_looking_left(angle))
-		B.x--;
+		B.x -= 0.01f;
 	while (i < MAX_ITERATION && B.x / SIZE >= 0 && B.x / SIZE <= MAP_WIDTH)
 	{
 		if (is_wall(map, (t_vec_2){(int)floor(B.x), (int)floor(B.y)}))
@@ -362,59 +354,58 @@ t_vec_2	get_vertical_colision(t_img *buffer, t_dvec2 start, char *map,
 		B.y += Ya;
 		i++;
 	}
-	return ((t_vec_2){(int)floor(B.x), (int)floor(B.y)});
+	B.x -= 0.001f;
+	return (B);
 }
 
-double	distance_between(t_dvec2 vec1, t_vec_2 vec2)
+double	distance_between(t_dvec2 vec1, t_dvec2 vec2)
 {
 	double	mx;
 	double	my;
 
-	mx = ft_max(vec1.x - vec2.x, vec2.x - vec1.x);
-	my = ft_max(vec1.y - vec2.y, vec2.y - vec1.y);
-	return (sqrtf(mx * mx + my * my));
+	mx = vec2.x - vec1.x;
+	my = vec2.y - vec1.y;
+	return (sqrt(mx * mx + my * my));
 }
 
-typedef unsigned int t_color;
+typedef unsigned int	t_color;
 
-t_color igmlx_melt_colors(t_color input, t_color filter)
+t_color	igmlx_melt_colors(t_color input, t_color filter, double filter_weight)
 {
-	t_color result;
+	t_color	result;
+	double	input_weight;
+
 	t_color alpha, red, green, blue;
 	t_color f_alpha, f_red, f_green, f_blue;
-	double filter_weight = 0.8;
-	double input_weight = 1.0 - filter_weight;
-
+	input_weight = 1.0 - filter_weight;
 	alpha = (input >> 24) & 0xFF;
 	red = (input >> 16) & 0xFF;
 	green = (input >> 8) & 0xFF;
 	blue = input & 0xFF;
-
 	f_alpha = (filter >> 24) & 0xFF;
 	f_red = (filter >> 16) & 0xFF;
 	f_green = (filter >> 8) & 0xFF;
 	f_blue = filter & 0xFF;
-
 	alpha = (alpha * input_weight) + (f_alpha * filter_weight);
 	red = (red * input_weight) + (f_red * filter_weight);
 	green = (green * input_weight) + (f_green * filter_weight);
 	blue = (blue * input_weight) + (f_blue * filter_weight);
-
 	result = ((t_color)alpha << 24) | ((t_color)red << 16) | ((t_color)green << 8) | (t_color)blue;
-	return result;
+	return (result);
 }
 
 void	draw_ray(t_img *buffer, t_player player, t_data *data, double angle,
 		int i)
 {
-	t_vec_2	vert;
-	t_vec_2	hori;
-	t_vec_2	pos;
-	int	height;
-	long double	distance;
-	long double	r;
+	t_dvec2	vert;
+	t_dvec2	hori;
+	t_dvec2	pos;
+	int		height;
+	double	distance;
+	double	r;
 	int		color;
-
+	double	a;
+	double	weight;
 
 	vert = get_vertical_colision(data->rendering_buffer, player.position,
 			data->map, angle);
@@ -437,15 +428,20 @@ void	draw_ray(t_img *buffer, t_player player, t_data *data, double angle,
 	}
 	draw_line(data->debug_rendering_buffer, color,
 		(t_vec_2){(int)floor(player.position.x), (int)floor(player.position.y)},
-		pos);
-
-	long double a = player.rotation_angle - angle;
+		(t_vec_2){(int)floor(pos.x), (int)floor(pos.y)});
+	a = fabs(player.rotation_angle - angle);
 	distance = distance_between(player.position, pos);
 	distance *= cos(a);
-
-	r = get_distance_from_the_camera(data);
-	height = ((long double)(64 / distance) * r);
-	color = (color >> 1) & 8355711;
+	printf("%f\n", distance);
+	height = ((double)(64 / distance) * DISTANCE_FROM_CAMERA);
+	// color = (color >> 1) & 8355711;
+	// color *= (60 / distance);
+	weight = (150 / distance);
+	if (weight < 0)
+		weight = 0;
+	if (weight > 1)
+		weight = 1;
+	color = igmlx_melt_colors(0x000000, color, weight);
 	draw_straight_line(buffer, color, i, height);
 }
 
@@ -462,18 +458,18 @@ void	draw_player(t_img *buffer, t_data *data, t_player player)
 	double	angle;
 	int		x;
 
-	draw_rect(data->debug_rendering_buffer, 0xFF0000, (t_uvec2){((int)player.position.x) - 5,
-		((int)player.position.y) - 5}, (t_uvec2){((int)player.position.x) + 5,
-		((int)player.position.y) + 5});
+	draw_rect(data->debug_rendering_buffer, 0xFF0000,
+		(t_uvec2){((int)player.position.x) - 5, ((int)player.position.y) - 5},
+		(t_uvec2){((int)player.position.x) + 5, ((int)player.position.y) + 5});
 	i = 0;
 	x = 0;
-	angle = player.rotation_angle - (FOV / 2);
+	angle = normalize_angle(player.rotation_angle - (FOV / 2));
 	while (i < RAYS_COUNT)
 	{
 		draw_ray(buffer, player, data, normalize_angle(angle), x);
 		i += 1;
 		x += X_SIZE;
-		angle += FOV / RAYS_COUNT;
+		angle += (double)(FOV / RAYS_COUNT);
 	}
 	raycaster(data->debug_rendering_buffer, player, player.rotation_angle, 15);
 }
