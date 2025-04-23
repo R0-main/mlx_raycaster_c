@@ -6,7 +6,7 @@
 /*   By: rguigneb <rguigneb@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/28 10:15:20 by rguigneb          #+#    #+#             */
-/*   Updated: 2025/04/23 11:11:40 by rguigneb         ###   ########.fr       */
+/*   Updated: 2025/04/23 12:17:25 by rguigneb         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -21,6 +21,7 @@
 #define MAP_HEIGHT 7
 #define MAP_WIDTH 10
 #define SIZE 84
+#define TILE_SIZE 64
 #define FOV (double)(60 * (PI / 180))
 #define MAX_ITERATION 10
 
@@ -224,8 +225,10 @@ void	draw_straight_line(t_img *buffer, t_data *data, t_dvec2 ray, int color,
 	t_color	dcolor;
 	int		d;
 	double	weight;
+	int		texelX;
+	double		distanceFromTop;
+	int		texelY;
 
-	textureX = (int)ray.x * (data->wall_texture->width);
 	t = (SCREEN_HEIGHT - height) / 2;
 	y = t;
 	d = 0;
@@ -234,16 +237,24 @@ void	draw_straight_line(t_img *buffer, t_data *data, t_dvec2 ray, int color,
 		weight = 0;
 	if (weight > 1)
 		weight = 1;
+	if (color != 0x00EE00)
+		texelX = (int)floor(ray.y) % TILE_SIZE;
+	else
+		texelX = (int)floor(ray.x) % TILE_SIZE;
+	// Scale texelX to the texture width
+	texelX = (texelX * data->wall_texture->width) / TILE_SIZE;
 	// color = igmlx_melt_colors(0x000000, color, weight);
 	while (y < SCREEN_HEIGHT - t)
 	{
-		if (d < data->wall_texture->height)
-		{
-			dcolor = ((t_color *)(data->wall_texture->data))[((abs(((int)ray.x % 63)))
-					* (data->wall_texture->size_line / 4)) + abs((int)ray.y % 63)];
-			dcolor = igmlx_melt_colors(0x000000, dcolor, weight);
-			d++;
-		}
+		distanceFromTop = y + (height / 2) - (SCREEN_HEIGHT / 2);
+		texelY = distanceFromTop * ((double)data->wall_texture->height
+				/ height);
+		// Ensure texelY stays within the texture height bounds
+		texelY = texelY % data->wall_texture->height;
+		dcolor = ((t_color *)(data->wall_texture->data))[(texelY
+				* (data->wall_texture->size_line / 4)) + texelX];
+		dcolor = igmlx_melt_colors(0x000000, dcolor, weight);
+		d++;
 		put_pixel_to_buffer(buffer, (t_uvec2){x, y}, (int)dcolor);
 		y++;
 	}
