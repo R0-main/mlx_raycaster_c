@@ -6,7 +6,7 @@
 /*   By: rguigneb <rguigneb@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/28 10:15:20 by rguigneb          #+#    #+#             */
-/*   Updated: 2025/04/23 09:33:09 by rguigneb         ###   ########.fr       */
+/*   Updated: 2025/04/23 11:11:40 by rguigneb         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -27,10 +27,12 @@
 #define SCREEN_HEIGHT MAP_HEIGHT *SIZE
 #define SCREEN_WIDTH MAP_WIDTH *SIZE
 
-#define X_SIZE 2
+#define X_SIZE 1
 #define RAYS_COUNT (int)((SCREEN_WIDTH) / X_SIZE)
 
 #define PLAYER_SPEED 2
+
+typedef unsigned int	t_color;
 
 typedef struct s_uvec_2
 {
@@ -71,7 +73,32 @@ typedef struct s_data
 	t_img				*rendering_buffer;
 	t_player			player;
 	char				*map;
+	t_img				*wall_texture;
 }						t_data;
+
+t_color	igmlx_melt_colors(t_color input, t_color filter, double filter_weight)
+{
+	t_color	result;
+	double	input_weight;
+
+	t_color alpha, red, green, blue;
+	t_color f_alpha, f_red, f_green, f_blue;
+	input_weight = 1.0 - filter_weight;
+	alpha = (input >> 24) & 0xFF;
+	red = (input >> 16) & 0xFF;
+	green = (input >> 8) & 0xFF;
+	blue = input & 0xFF;
+	f_alpha = (filter >> 24) & 0xFF;
+	f_red = (filter >> 16) & 0xFF;
+	f_green = (filter >> 8) & 0xFF;
+	f_blue = filter & 0xFF;
+	alpha = (alpha * input_weight) + (f_alpha * filter_weight);
+	red = (red * input_weight) + (f_red * filter_weight);
+	green = (green * input_weight) + (f_green * filter_weight);
+	blue = (blue * input_weight) + (f_blue * filter_weight);
+	result = ((t_color)alpha << 24) | ((t_color)red << 16) | ((t_color)green << 8) | (t_color)blue;
+	return (result);
+}
 
 double	normalize_angle(double angle)
 {
@@ -94,7 +121,7 @@ void	on_key_pressed(int key, t_data *data)
 		data->player.position.x += adj;
 		data->player.position.y += opo;
 	}
-	if (key == 's')
+	else if (key == 's')
 	{
 		adj = cos(data->player.rotation_angle) * 3.5;
 		opo = sin(data->player.rotation_angle) * 3.5;
@@ -105,7 +132,7 @@ void	on_key_pressed(int key, t_data *data)
 	{
 		data->player.rotation_angle -= 0.05;
 	}
-	if (key == 'd')
+	else if (key == 'd')
 	{
 		data->player.rotation_angle += 0.05;
 	}
@@ -188,24 +215,44 @@ void	draw_rect(t_img *buffer, int color, t_uvec2 start, t_uvec2 end)
 	}
 }
 
-void	draw_straight_line(t_img *buffer, int color, int x, int height)
+void	draw_straight_line(t_img *buffer, t_data *data, t_dvec2 ray, int color,
+		int x, int height, double distance)
 {
-	int	y;
-	int	t;
+	int		y;
+	int		t;
+	int		textureX;
+	t_color	dcolor;
+	int		d;
+	double	weight;
 
+	textureX = (int)ray.x * (data->wall_texture->width);
 	t = (SCREEN_HEIGHT - height) / 2;
 	y = t;
+	d = 0;
+	weight = (150 / distance);
+	if (weight < 0)
+		weight = 0;
+	if (weight > 1)
+		weight = 1;
+	// color = igmlx_melt_colors(0x000000, color, weight);
 	while (y < SCREEN_HEIGHT - t)
 	{
-		put_pixel_to_buffer(buffer, (t_uvec2){x, y}, color);
+		if (d < data->wall_texture->height)
+		{
+			dcolor = ((t_color *)(data->wall_texture->data))[((abs(((int)ray.x % 63)))
+					* (data->wall_texture->size_line / 4)) + abs((int)ray.y % 63)];
+			dcolor = igmlx_melt_colors(0x000000, dcolor, weight);
+			d++;
+		}
+		put_pixel_to_buffer(buffer, (t_uvec2){x, y}, (int)dcolor);
 		y++;
 	}
-	y = t;
-	while (y < SCREEN_HEIGHT - t)
-	{
-		put_pixel_to_buffer(buffer, (t_uvec2){x + 1, y}, color);
-		y++;
-	}
+	// y = t;
+	// while (y < SCREEN_HEIGHT - t)
+	// {
+	// 	put_pixel_to_buffer(buffer, (t_uvec2){x + 1, y}, color);
+	// 	y++;
+	// }
 	// y = t;
 	// while (y < SCREEN_HEIGHT - t)
 	// {
@@ -368,32 +415,6 @@ double	distance_between(t_dvec2 vec1, t_dvec2 vec2)
 	return (sqrt(mx * mx + my * my));
 }
 
-typedef unsigned int	t_color;
-
-t_color	igmlx_melt_colors(t_color input, t_color filter, double filter_weight)
-{
-	t_color	result;
-	double	input_weight;
-
-	t_color alpha, red, green, blue;
-	t_color f_alpha, f_red, f_green, f_blue;
-	input_weight = 1.0 - filter_weight;
-	alpha = (input >> 24) & 0xFF;
-	red = (input >> 16) & 0xFF;
-	green = (input >> 8) & 0xFF;
-	blue = input & 0xFF;
-	f_alpha = (filter >> 24) & 0xFF;
-	f_red = (filter >> 16) & 0xFF;
-	f_green = (filter >> 8) & 0xFF;
-	f_blue = filter & 0xFF;
-	alpha = (alpha * input_weight) + (f_alpha * filter_weight);
-	red = (red * input_weight) + (f_red * filter_weight);
-	green = (green * input_weight) + (f_green * filter_weight);
-	blue = (blue * input_weight) + (f_blue * filter_weight);
-	result = ((t_color)alpha << 24) | ((t_color)red << 16) | ((t_color)green << 8) | (t_color)blue;
-	return (result);
-}
-
 void	draw_ray(t_img *buffer, t_player player, t_data *data, double angle,
 		int i)
 {
@@ -432,17 +453,9 @@ void	draw_ray(t_img *buffer, t_player player, t_data *data, double angle,
 	a = fabs(player.rotation_angle - angle);
 	distance = distance_between(player.position, pos);
 	distance *= cos(a);
-	printf("%f\n", distance);
 	height = ((double)(64 / distance) * DISTANCE_FROM_CAMERA);
 	// color = (color >> 1) & 8355711;
-	// color *= (60 / distance);
-	weight = (150 / distance);
-	if (weight < 0)
-		weight = 0;
-	if (weight > 1)
-		weight = 1;
-	color = igmlx_melt_colors(0x000000, color, weight);
-	draw_straight_line(buffer, color, i, height);
+	draw_straight_line(buffer, data, pos, color, i, height, distance);
 }
 
 void	raycaster(t_img *buffer, t_player player, double angle, int len)
@@ -526,6 +539,7 @@ int	main(int argc, char const *argv[])
 			0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0,
 			0, 1, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0,
 			0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+	int		d;
 
 	bzero(&data, sizeof(t_data));
 	data.player.position.x = SCREEN_WIDTH / 2 - SIZE;
@@ -551,6 +565,8 @@ int	main(int argc, char const *argv[])
 	mlx_hook(data.debug_win, DestroyNotify, 0, destroy_close, &data.mlx);
 	mlx_hook(data.debug_win, KeyPress, KeyPressMask, (int (*)())on_key_pressed,
 		&data);
+	data.wall_texture = mlx_xpm_file_to_image(data.mlx, "assets/wall1.xpm", &d,
+			&d);
 	// mlx_key_hook(data.win, (int (*)(void *))on_key_pressed, &data);
 	mlx_loop_hook(data.mlx, (int (*)(void *))loop, &data);
 	mlx_loop(data.mlx);
