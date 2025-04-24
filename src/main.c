@@ -6,7 +6,7 @@
 /*   By: rguigneb <rguigneb@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/28 10:15:20 by rguigneb          #+#    #+#             */
-/*   Updated: 2025/04/23 12:17:25 by rguigneb         ###   ########.fr       */
+/*   Updated: 2025/04/24 08:55:28 by rguigneb         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -217,21 +217,19 @@ void	draw_rect(t_img *buffer, int color, t_uvec2 start, t_uvec2 end)
 }
 
 void	draw_straight_line(t_img *buffer, t_data *data, t_dvec2 ray, int color,
-		int x, int height, double distance)
+		int x, double height, double distance)
 {
 	int		y;
 	int		t;
 	int		textureX;
 	t_color	dcolor;
-	int		d;
 	double	weight;
 	int		texelX;
-	double		distanceFromTop;
+	double	distanceFromTop;
 	int		texelY;
 
 	t = (SCREEN_HEIGHT - height) / 2;
 	y = t;
-	d = 0;
 	weight = (150 / distance);
 	if (weight < 0)
 		weight = 0;
@@ -247,14 +245,12 @@ void	draw_straight_line(t_img *buffer, t_data *data, t_dvec2 ray, int color,
 	while (y < SCREEN_HEIGHT - t)
 	{
 		distanceFromTop = y + (height / 2) - (SCREEN_HEIGHT / 2);
-		texelY = distanceFromTop * ((double)data->wall_texture->height
-				/ height);
+		texelY =  (1LL* distanceFromTop * data->wall_texture->height + height/2)/ height;
 		// Ensure texelY stays within the texture height bounds
 		texelY = texelY % data->wall_texture->height;
 		dcolor = ((t_color *)(data->wall_texture->data))[(texelY
 				* (data->wall_texture->size_line / 4)) + texelX];
 		dcolor = igmlx_melt_colors(0x000000, dcolor, weight);
-		d++;
 		put_pixel_to_buffer(buffer, (t_uvec2){x, y}, (int)dcolor);
 		y++;
 	}
@@ -432,7 +428,7 @@ void	draw_ray(t_img *buffer, t_player player, t_data *data, double angle,
 	t_dvec2	vert;
 	t_dvec2	hori;
 	t_dvec2	pos;
-	int		height;
+	double	height;
 	double	distance;
 	double	r;
 	int		color;
