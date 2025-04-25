@@ -6,7 +6,7 @@
 /*   By: rguigneb <rguigneb@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/28 10:15:20 by rguigneb          #+#    #+#             */
-/*   Updated: 2025/04/25 09:54:44 by rguigneb         ###   ########.fr       */
+/*   Updated: 2025/04/25 12:56:57 by rguigneb         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -76,6 +76,7 @@ typedef struct s_data
 	t_player			player;
 	char				*map;
 	t_img				*wall_texture;
+	t_img				*other;
 }						t_data;
 
 t_color	igmlx_melt_colors(t_color input, t_color filter, double filter_weight)
@@ -102,6 +103,15 @@ t_color	igmlx_melt_colors(t_color input, t_color filter, double filter_weight)
 	return (result);
 }
 
+void	switch_wall_texture(t_data *data)
+{
+	t_img	*tmp;
+
+	tmp = data->wall_texture;
+	data->wall_texture = data->other;
+	data->other = tmp;
+}
+
 double	normalize_angle(double angle)
 {
 	angle = fmod(angle, (2.0f * PI));
@@ -116,6 +126,8 @@ void	on_key_pressed(int key, t_data *data)
 	double	opo;
 
 	printf("key :%d\n", key);
+	if (key == 'b')
+		switch_wall_texture(data);
 	if (key == 'w')
 	{
 		adj = cos(data->player.rotation_angle) * 3.5;
@@ -137,7 +149,6 @@ void	on_key_pressed(int key, t_data *data)
 	else if (key == 65364)
 	{
 		data->player.pitch -= 10;
-
 	}
 	if (key == 'a')
 	{
@@ -148,6 +159,17 @@ void	on_key_pressed(int key, t_data *data)
 		data->player.rotation_angle += 0.05;
 	}
 	data->player.rotation_angle = normalize_angle(data->player.rotation_angle);
+}
+
+
+double	distance_between(t_dvec2 vec1, t_dvec2 vec2)
+{
+	double	mx;
+	double	my;
+
+	mx = vec2.x - vec1.x;
+	my = vec2.y - vec1.y;
+	return (sqrt(mx * mx + my * my));
 }
 
 #define DISTANCE_FROM_CAMERA (double)((SCREEN_WIDTH / 2) / tan(FOV / 2))
@@ -237,9 +259,18 @@ void	draw_straight_line(t_img *buffer, t_data *data, t_dvec2 ray, int color,
 	int		texelX;
 	double	distanceFromTop;
 	int		texelY;
+	float	dist;
+	double	currentFloorX;
+	double	currentFloorY;
+	int		floorTexX;
+	int		floorTexY;
+	float	rayDirX;
+	float	rayDirY;
+	int		checkerBoardPattern;
+		int floorTexture;
 
 	t = ((SCREEN_HEIGHT - height) / 2);
-	y = t;
+	// y = t;
 	weight = (150 / distance);
 	if (weight < 0)
 		weight = 0;
@@ -252,18 +283,110 @@ void	draw_straight_line(t_img *buffer, t_data *data, t_dvec2 ray, int color,
 	// Scale texelX to the texture width
 	texelX = (texelX * data->wall_texture->width) / TILE_SIZE;
 	// color = igmlx_melt_colors(0x000000, color, weight);
+	y = t;
 	while (y < SCREEN_HEIGHT - t)
 	{
 		distanceFromTop = y + (height / 2) - (SCREEN_HEIGHT / 2);
-		texelY =  (1LL* distanceFromTop * data->wall_texture->height + height/2)/ height;
+		texelY = (1LL * distanceFromTop * data->wall_texture->height + height
+				/ 2) / height;
 		// Ensure texelY stays within the texture height bounds
 		texelY = texelY % data->wall_texture->height;
 		dcolor = ((t_color *)(data->wall_texture->data))[(texelY
 				* (data->wall_texture->size_line / 4)) + texelX];
 		dcolor = igmlx_melt_colors(0x000000, dcolor, weight);
-		put_pixel_to_buffer(buffer, (t_uvec2){x, y + data->player.pitch}, (int)dcolor);
+		put_pixel_to_buffer(buffer, (t_uvec2){x, y + data->player.pitch},
+			(int)dcolor);
 		y++;
 	}
+
+	double cameraX = 2 * x / (double)SCREEN_WIDTH - 1;
+	rayDirX = cos(data->player.rotation_angle) + 2 * cameraX;
+	rayDirY = sin(data->player.rotation_angle) + 2 * cameraX;
+	//calculate value of wallX
+	double wallX, wallY; //where exactly the wall was hit
+
+	int mapX = (int)ray.x;
+	int mapY = (int)ray.y;
+
+	double floorXWall, floorYWall; //x, y position of the floor texel at the bottom of the wall
+	if (color == 0x00EE00) wallX = (int)ray.y + distance * rayDirY;
+	else           wallX = (int)ray.x + distance * rayDirX;
+	wallX -= floor((wallX));
+      //4 different wall directions possible
+      if(color == 0x00EE00 && rayDirX > 0)
+      {
+        floorXWall = mapX;
+        floorYWall = mapY + wallX;
+      }
+      else if(color == 0x00EE00 && rayDirX < 0)
+      {
+        floorXWall = mapX + 1.0;
+        floorYWall = mapY + wallX;
+      }
+      else if(color == 0x00EE00 && rayDirY > 0)
+      {
+        floorXWall = mapX + wallX;
+        floorYWall = mapY;
+      }
+      else
+      {
+        floorXWall = mapX + wallX;
+        floorYWall = mapY + 1.0;
+      }
+
+
+	while (y < SCREEN_HEIGHT)
+	{
+		double currentDist = SCREEN_HEIGHT / (2.0 * y - SCREEN_HEIGHT);
+		double distPlayer = 0; //distance_between(data->player.position, ray);
+			// you could make a small lookup table for this instead
+		weight = (currentDist - (distPlayer)) / (distance - distPlayer);
+
+		currentFloorX = weight * floorXWall + (1.0 - weight) * x;
+		currentFloorY = weight * floorYWall + (1.0 - weight) * y;
+
+		int floorTexX, floorTexY;
+
+		floorTexX = (int)(currentFloorX * 64) % 63;
+		floorTexY = (int)(currentFloorY * 64) % 63;
+
+		// floor
+		dcolor = ((t_color *)(data->other->data))[64 * floorTexY
+			+ floorTexX];
+		put_pixel_to_buffer(buffer, (t_uvec2){x, y + data->player.pitch},
+			(int)dcolor);
+		y++;
+
+	}
+	// int XWall, YWall;
+	// rayDirX = ray.x - data->player.position.x;
+	// rayDirY = ray.y - data->player.position.y;
+	// if (color != 0x00EE00)
+	// {
+	// 	// Wall was hit on X-axis (vertical wall)
+	// 	XWall = ray.x / TILE_SIZE;
+	// 	YWall = data->player.position.y + distance * rayDirY;
+	// }
+	// else
+	// {
+	// 	// Wall was hit on Y-axis (horizontal wall)
+	// 	XWall = data->player.position.x + distance * rayDirX;
+	// 	YWall = ray.y / TILE_SIZE;
+	// 	;
+	// }
+	// while (y < SCREEN_HEIGHT)
+	// {
+	// 	dist = height / (2 * y - height);
+	// 	weight = dist / distance;
+	// 	currentFloorX = weight * XWall + (1 - weight) * data->player.position.x;
+	// 	currentFloorY = weight * YWall + (1 - weight) * data->player.position.y;
+	// 	floorTexX = (int)(currentFloorX * 64) % 64;
+	// 	floorTexY = (int)(currentFloorY * 64) % 64;
+	// 	dcolor = ((t_color *)(data->wall_texture->data))[(floorTexY
+	// 			* (data->wall_texture->size_line / 4)) + floorTexX];
+	// 	put_pixel_to_buffer(buffer, (t_uvec2){x, y}, (int)dcolor);
+	// 	y++;
+	// }
 	// y = t;
 	// while (y < SCREEN_HEIGHT - t)
 	// {
@@ -422,16 +545,6 @@ t_dvec2	get_vertical_colision(t_img *buffer, t_dvec2 start, char *map,
 	return (B);
 }
 
-double	distance_between(t_dvec2 vec1, t_dvec2 vec2)
-{
-	double	mx;
-	double	my;
-
-	mx = vec2.x - vec1.x;
-	my = vec2.y - vec1.y;
-	return (sqrt(mx * mx + my * my));
-}
-
 void	draw_ray(t_img *buffer, t_player player, t_data *data, double angle,
 		int i)
 {
@@ -470,6 +583,7 @@ void	draw_ray(t_img *buffer, t_player player, t_data *data, double angle,
 	a = fabs(player.rotation_angle - angle);
 	distance = distance_between(player.position, pos);
 	distance *= cos(a);
+	// pos.y += player.pitch;
 	height = ((double)(64 / distance) * DISTANCE_FROM_CAMERA);
 	// color = (color >> 1) & 8355711;
 	draw_straight_line(buffer, data, pos, color, i, height, distance);
@@ -510,10 +624,19 @@ void	draw_sky(t_data *data)
 		(t_uvec2){SCREEN_WIDTH, SCREEN_HEIGHT / 2 + data->player.pitch});
 }
 
+#define CAMERA_Z (float)(0.5f * SCREEN_HEIGHT)
+
 void	draw_floor(t_data *data)
 {
-	draw_rect(data->rendering_buffer, 0X8A6500, (t_uvec2){0, SCREEN_HEIGHT / 2 + data->player.pitch},
-		(t_uvec2){SCREEN_WIDTH, SCREEN_HEIGHT - 1 });
+	t_dvec2	direction;
+	t_dvec2	plane;
+	t_dvec2	position;
+
+	// direction = (t_dvec2){cos(data->player.rotation_angle),
+	// 	sin(data->player.rotation_angle)};
+	// plane = (t_dvec2){-direction.y, direction.x * 0.66f};
+	// position = {floor(data->player.position.x / 64),
+	// 	floor(data->player.position.y / 64)};
 }
 
 void	loop(t_data *data)
@@ -584,6 +707,7 @@ int	main(int argc, char const *argv[])
 		&data);
 	data.wall_texture = mlx_xpm_file_to_image(data.mlx, "assets/wall1.xpm", &d,
 			&d);
+	data.other = mlx_xpm_file_to_image(data.mlx, "assets/romain.xpm", &d, &d);
 	// mlx_key_hook(data.win, (int (*)(void *))on_key_pressed, &data);
 	mlx_loop_hook(data.mlx, (int (*)(void *))loop, &data);
 	mlx_loop(data.mlx);
