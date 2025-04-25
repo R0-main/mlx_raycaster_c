@@ -6,7 +6,7 @@
 /*   By: rguigneb <rguigneb@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/28 10:15:20 by rguigneb          #+#    #+#             */
-/*   Updated: 2025/04/25 12:56:57 by rguigneb         ###   ########.fr       */
+/*   Updated: 2025/04/25 17:05:57 by rguigneb         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -77,6 +77,8 @@ typedef struct s_data
 	char				*map;
 	t_img				*wall_texture;
 	t_img				*other;
+	t_img				*floor;
+	t_img				*sky;
 }						t_data;
 
 t_color	igmlx_melt_colors(t_color input, t_color filter, double filter_weight)
@@ -248,14 +250,14 @@ void	draw_rect(t_img *buffer, int color, t_uvec2 start, t_uvec2 end)
 	}
 }
 
-void	draw_straight_line(t_img *buffer, t_data *data, t_dvec2 ray, int color,
+void	draw_straight_line(t_img *buffer, t_data *data, t_dvec2 ray, double angle, int color,
 		int x, double height, double distance)
 {
 	int		y;
 	int		t;
 	int		textureX;
 	t_color	dcolor;
-	double	weight;
+	double	darkness_weight;
 	int		texelX;
 	double	distanceFromTop;
 	int		texelY;
@@ -269,20 +271,28 @@ void	draw_straight_line(t_img *buffer, t_data *data, t_dvec2 ray, int color,
 	int		checkerBoardPattern;
 		int floorTexture;
 
-	t = ((SCREEN_HEIGHT - height) / 2);
+	t = 0;
+	while (t < (SCREEN_HEIGHT - height) / 2)
+	{
+		dcolor = ((t_color *)(data->sky->data))[(data->sky->size_line / 4) * t
+			+ (int)((float)x + (data->player.rotation_angle * 1000)) % (SCREEN_WIDTH)];
+		put_pixel_to_buffer(buffer, (t_uvec2){x, t},
+			(int)dcolor);
+		t++;
+	}
 	// y = t;
-	weight = (150 / distance);
-	if (weight < 0)
-		weight = 0;
-	if (weight > 1)
-		weight = 1;
+	darkness_weight = (150 / distance);
+	if (darkness_weight < 0)
+		darkness_weight = 0;
+	if (darkness_weight > 1)
+		darkness_weight = 1;
 	if (color != 0x00EE00)
 		texelX = (int)floor(ray.y) % TILE_SIZE;
 	else
 		texelX = (int)floor(ray.x) % TILE_SIZE;
 	// Scale texelX to the texture width
 	texelX = (texelX * data->wall_texture->width) / TILE_SIZE;
-	// color = igmlx_melt_colors(0x000000, color, weight);
+	// color = igmlx_melt_colors(0x000000, color, darkness_weight);
 	y = t;
 	while (y < SCREEN_HEIGHT - t)
 	{
@@ -293,15 +303,24 @@ void	draw_straight_line(t_img *buffer, t_data *data, t_dvec2 ray, int color,
 		texelY = texelY % data->wall_texture->height;
 		dcolor = ((t_color *)(data->wall_texture->data))[(texelY
 				* (data->wall_texture->size_line / 4)) + texelX];
-		dcolor = igmlx_melt_colors(0x000000, dcolor, weight);
+		dcolor = igmlx_melt_colors(0x000000, dcolor, darkness_weight);
 		put_pixel_to_buffer(buffer, (t_uvec2){x, y + data->player.pitch},
 			(int)dcolor);
 		y++;
 	}
 
+	double dirX = cos(data->player.rotation_angle);
+	double dirY = sin(data->player.rotation_angle);
+
+	// camera plane perpendicular to direction (FOV usually about 66 degrees)
+	double planeX = -dirY * 0.66f;
+	double planeY =  dirX * 0.66f;
+
 	double cameraX = 2 * x / (double)SCREEN_WIDTH - 1;
-	rayDirX = cos(data->player.rotation_angle) + 2 * cameraX;
-	rayDirY = sin(data->player.rotation_angle) + 2 * cameraX;
+
+	rayDirX = dirX + planeX * cameraX;
+	rayDirY = dirY + planeY * cameraX;
+
 	//calculate value of wallX
 	double wallX, wallY; //where exactly the wall was hit
 
@@ -309,21 +328,21 @@ void	draw_straight_line(t_img *buffer, t_data *data, t_dvec2 ray, int color,
 	int mapY = (int)ray.y;
 
 	double floorXWall, floorYWall; //x, y position of the floor texel at the bottom of the wall
-	if (color == 0x00EE00) wallX = (int)ray.y + distance * rayDirY;
+	if (color != 0x00EE00) wallX = (int)ray.y + distance * rayDirY;
 	else           wallX = (int)ray.x + distance * rayDirX;
 	wallX -= floor((wallX));
       //4 different wall directions possible
-      if(color == 0x00EE00 && rayDirX > 0)
+      if(color != 0x00EE00 && rayDirX > 0)
       {
         floorXWall = mapX;
         floorYWall = mapY + wallX;
       }
-      else if(color == 0x00EE00 && rayDirX < 0)
+      else if(color != 0x00EE00 && rayDirX < 0)
       {
         floorXWall = mapX + 1.0;
         floorYWall = mapY + wallX;
       }
-      else if(color == 0x00EE00 && rayDirY > 0)
+      else if(color != 0x00EE00 && rayDirY > 0)
       {
         floorXWall = mapX + wallX;
         floorYWall = mapY;
@@ -334,29 +353,26 @@ void	draw_straight_line(t_img *buffer, t_data *data, t_dvec2 ray, int color,
         floorYWall = mapY + 1.0;
       }
 
-
 	while (y < SCREEN_HEIGHT)
 	{
 		double currentDist = SCREEN_HEIGHT / (2.0 * y - SCREEN_HEIGHT);
-		double distPlayer = 0; //distance_between(data->player.position, ray);
-			// you could make a small lookup table for this instead
-		weight = (currentDist - (distPlayer)) / (distance - distPlayer);
+		double distPlayer = 0;
+		double weight = (currentDist - (distPlayer)) / ((distance) - distPlayer);
 
-		currentFloorX = weight * floorXWall + (1.0 - weight) * x;
-		currentFloorY = weight * floorYWall + (1.0 - weight) * y;
+		currentFloorX = weight * floorXWall + (1.0 - weight) * (data->player.position.x);
+		currentFloorY = weight * floorYWall + (1.0 - weight) * (data->player.position.y);
+
 
 		int floorTexX, floorTexY;
 
-		floorTexX = (int)(currentFloorX * 64) % 63;
-		floorTexY = (int)(currentFloorY * 64) % 63;
+		floorTexX = (int)(currentFloorX * 64.f) % 64;
+		floorTexY = (int)(currentFloorY * 64.f) % 64;
 
-		// floor
-		dcolor = ((t_color *)(data->other->data))[64 * floorTexY
+		dcolor = ((t_color *)(data->floor->data))[(floorTexY * (data->floor->size_line / 4))
 			+ floorTexX];
 		put_pixel_to_buffer(buffer, (t_uvec2){x, y + data->player.pitch},
 			(int)dcolor);
 		y++;
-
 	}
 	// int XWall, YWall;
 	// rayDirX = ray.x - data->player.position.x;
@@ -586,7 +602,7 @@ void	draw_ray(t_img *buffer, t_player player, t_data *data, double angle,
 	// pos.y += player.pitch;
 	height = ((double)(64 / distance) * DISTANCE_FROM_CAMERA);
 	// color = (color >> 1) & 8355711;
-	draw_straight_line(buffer, data, pos, color, i, height, distance);
+	draw_straight_line(buffer, data, pos, angle, color, i, height, distance);
 }
 
 void	raycaster(t_img *buffer, t_player player, double angle, int len)
@@ -620,8 +636,24 @@ void	draw_player(t_img *buffer, t_data *data, t_player player)
 
 void	draw_sky(t_data *data)
 {
-	draw_rect(data->rendering_buffer, 0x00F0EE, (t_uvec2){0, 0},
-		(t_uvec2){SCREEN_WIDTH, SCREEN_HEIGHT / 2 + data->player.pitch});
+	// int x = 0;
+	// int y = 0;
+	// t_color color;
+
+	// while (y < SCREEN_HEIGHT / 2)
+	// {
+	// 	x = 0;
+	// 	while (x < SCREEN_WIDTH)
+	// 	{
+	// 		c
+	// 		put_pixel_to_buffer(data->rendering_buffer, (t_uvec2){x, y},
+	// 			(int)color);
+	// 		x++;
+	// 	}
+	// 	y++;
+	// }
+	// draw_rect(data->rendering_buffer, 0x00F0EE, (t_uvec2){0, 0},
+	// 	(t_uvec2){SCREEN_WIDTH, SCREEN_HEIGHT / 2 + data->player.pitch});
 }
 
 #define CAMERA_Z (float)(0.5f * SCREEN_HEIGHT)
@@ -649,8 +681,6 @@ void	loop(t_data *data)
 			SCREEN_HEIGHT);
 	data->debug_rendering_buffer = mlx_new_image(data->mlx, SCREEN_WIDTH,
 			SCREEN_HEIGHT);
-	draw_floor(data);
-	draw_sky(data);
 	// draw_line(data->rendering_buffer, 0xFF0000, (t_uvec2){50, 200},
 	// (t_uvec2){0,
 	// 	0});
@@ -708,6 +738,8 @@ int	main(int argc, char const *argv[])
 	data.wall_texture = mlx_xpm_file_to_image(data.mlx, "assets/wall1.xpm", &d,
 			&d);
 	data.other = mlx_xpm_file_to_image(data.mlx, "assets/romain.xpm", &d, &d);
+	data.floor = mlx_xpm_file_to_image(data.mlx, "assets/wall2.xpm", &d, &d);
+	data.sky = mlx_xpm_file_to_image(data.mlx, "assets/sky.xpm", &d, &d);
 	// mlx_key_hook(data.win, (int (*)(void *))on_key_pressed, &data);
 	mlx_loop_hook(data.mlx, (int (*)(void *))loop, &data);
 	mlx_loop(data.mlx);
