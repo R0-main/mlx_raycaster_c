@@ -6,7 +6,7 @@
 /*   By: rguigneb <rguigneb@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/28 10:15:20 by rguigneb          #+#    #+#             */
-/*   Updated: 2025/04/24 08:55:28 by rguigneb         ###   ########.fr       */
+/*   Updated: 2025/04/25 09:54:44 by rguigneb         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -62,6 +62,7 @@ typedef struct s_dvec_2
 typedef struct s_player
 {
 	t_dvec2				position;
+	double				pitch;
 	double				rotation_angle;
 }						t_player;
 
@@ -128,6 +129,15 @@ void	on_key_pressed(int key, t_data *data)
 		opo = sin(data->player.rotation_angle) * 3.5;
 		data->player.position.x -= adj;
 		data->player.position.y -= opo;
+	}
+	if (key == 65362)
+	{
+		data->player.pitch += 10;
+	}
+	else if (key == 65364)
+	{
+		data->player.pitch -= 10;
+
 	}
 	if (key == 'a')
 	{
@@ -228,7 +238,7 @@ void	draw_straight_line(t_img *buffer, t_data *data, t_dvec2 ray, int color,
 	double	distanceFromTop;
 	int		texelY;
 
-	t = (SCREEN_HEIGHT - height) / 2;
+	t = ((SCREEN_HEIGHT - height) / 2);
 	y = t;
 	weight = (150 / distance);
 	if (weight < 0)
@@ -251,7 +261,7 @@ void	draw_straight_line(t_img *buffer, t_data *data, t_dvec2 ray, int color,
 		dcolor = ((t_color *)(data->wall_texture->data))[(texelY
 				* (data->wall_texture->size_line / 4)) + texelX];
 		dcolor = igmlx_melt_colors(0x000000, dcolor, weight);
-		put_pixel_to_buffer(buffer, (t_uvec2){x, y}, (int)dcolor);
+		put_pixel_to_buffer(buffer, (t_uvec2){x, y + data->player.pitch}, (int)dcolor);
 		y++;
 	}
 	// y = t;
@@ -497,13 +507,13 @@ void	draw_player(t_img *buffer, t_data *data, t_player player)
 void	draw_sky(t_data *data)
 {
 	draw_rect(data->rendering_buffer, 0x00F0EE, (t_uvec2){0, 0},
-		(t_uvec2){SCREEN_WIDTH, SCREEN_HEIGHT / 2});
+		(t_uvec2){SCREEN_WIDTH, SCREEN_HEIGHT / 2 + data->player.pitch});
 }
 
 void	draw_floor(t_data *data)
 {
-	draw_rect(data->rendering_buffer, 0X8A6500, (t_uvec2){0, SCREEN_HEIGHT / 2},
-		(t_uvec2){SCREEN_WIDTH, SCREEN_HEIGHT - 1});
+	draw_rect(data->rendering_buffer, 0X8A6500, (t_uvec2){0, SCREEN_HEIGHT / 2 + data->player.pitch},
+		(t_uvec2){SCREEN_WIDTH, SCREEN_HEIGHT - 1 });
 }
 
 void	loop(t_data *data)
